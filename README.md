@@ -18,7 +18,7 @@ $ yarn add andymark-by/vue3-click-outside
 ```js
 import { createApp } from "vue"
 import App from "./App.vue"
-import vClickOutside from "v-click-outside"
+import vClickOutside from "vue3-click-outside"
 
 const app = createApp(App)
 app.use(vClickOutside)
@@ -69,7 +69,7 @@ app.use(vClickOutside)
 Or use it as a directive
 
 ```js
-import vClickOutside from 'v-click-outside'
+import vClickOutside from 'vue3-click-outside'
 
 <script>
   export default {
