@@ -1,7 +1,7 @@
 {
-  "name": "v-click-outside",
-  "version": "3.1.2",
-  "description": "Vue directive to react on clicks outside an element",
+  "name": "vue3-click-outside",
+  "version": "4.0.0",
+  "description": "Vue 3 directive to react on clicks outside an element",
   "main": "dist/v-click-outside.umd.js",
   "umd:main": "dist/v-click-outside.umd.js",
   "source": "src/index.js",
@@ -19,14 +19,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ndelvalle/v-click-outside.git"
+    "url": "git+https://github.com/andymark-by/vue3-click-outside.git"
   },
   "author": "ndelvalle <nicolas.delvalle@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ndelvalle/v-click-outside/issues"
+    "url": "https://github.com/andymark-by/vue3-click-outside/issues"
   },
-  "homepage": "https://github.com/ndelvalle/v-click-outside#readme",
+  "homepage": "https://github.com/andymark-by/vue3-click-outside#readme",
   "devDependencies": {
     "@babel/preset-env": "^7.11.0",
     "babel-core": "^6.26.3",
