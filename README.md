@@ -1,13 +1,6 @@
 # vue3-click-outside
 
-[![Build Status](https://travis-ci.com/ndelvalle/v-click-outside.svg?branch=master)](https://travis-ci.com/ndelvalle/v-click-outside)
-[![Coverage Status](https://coveralls.io/repos/github/ndelvalle/v-click-outside/badge.svg?branch=master)](https://coveralls.io/github/ndelvalle/v-click-outside?branch=master)
-[![dependencies Status](https://david-dm.org/ndelvalle/v-click-outside/status.svg)](https://david-dm.org/ndelvalle/v-click-outside)
-[![devDependencies Status](https://david-dm.org/ndelvalle/v-click-outside/dev-status.svg)](https://david-dm.org/ndelvalle/v-click-outside?type=dev)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/5ca72a2dd2044278918b45ea1eba122e)](https://www.codacy.com/app/ndelvalle/v-click-outside?utm_source=github.com&utm_medium=referral&utm_content=ndelvalle/v-click-outside&utm_campaign=Badge_Grade)
-[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-green)](https://github.com/prettier/prettier)
-
-Vue directive to react on clicks outside an element without stopping the event propagation.
+Vue 3 directive to react on clicks outside an element without stopping the event propagation.
 Great for closing dialogues and menus among other things.
 
 ## Install
@@ -23,10 +16,12 @@ $ yarn add andymark-by/vue3-click-outside
 ## Use
 
 ```js
-import Vue from 'vue'
-import vClickOutside from 'v-click-outside'
+import { createApp } from "vue"
+import App from "./App.vue"
+import vClickOutside from "v-click-outside"
 
-Vue.use(vClickOutside)
+const app = createApp(App)
+app.use(vClickOutside)
 ```
 
 ```js
@@ -71,6 +66,28 @@ Vue.use(vClickOutside)
   <div v-click-outside="vcoConfig"></div>
 </template>
 ```
+Or use it as a directive
+
+```js
+import vClickOutside from 'v-click-outside'
+
+<script>
+  export default {
+    directives: {
+      clickOutside: vClickOutside.directive
+    },
+    methods: {
+      onClickOutside (event) {
+        console.log('Clicked outside. Event: ', event)
+      }
+    }
+  };
+</script>
+
+<template>
+  <div v-click-outside="onClickOutside"></div>
+</template>
+```
 
 ## Detecting Iframe Clicks
 
@@ -88,4 +105,4 @@ Any improvements or suggestions to this are welcomed.
 
 ## License
 
-[MIT License](https://github.com/ndelvalle/v-click-outside/blob/master/LICENSE)
+[MIT License](https://github.com/andymark-by/vue3-click-outside/blob/master/LICENSE)
