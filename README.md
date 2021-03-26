@@ -1,4 +1,4 @@
-# v-click-outside
+# vue3-click-outside
 
 [![Build Status](https://travis-ci.com/ndelvalle/v-click-outside.svg?branch=master)](https://travis-ci.com/ndelvalle/v-click-outside)
 [![Coverage Status](https://coveralls.io/repos/github/ndelvalle/v-click-outside/badge.svg?branch=master)](https://coveralls.io/github/ndelvalle/v-click-outside?branch=master)
@@ -13,11 +13,11 @@ Great for closing dialogues and menus among other things.
 ## Install
 
 ```bash
-$ npm install --save v-click-outside
+$ npm install --save  andymark-by/vue3-click-outside
 ```
 
 ```bash
-$ yarn add v-click-outside
+$ yarn add andymark-by/vue3-click-outside
 ```
 
 ## Use
@@ -72,89 +72,6 @@ Vue.use(vClickOutside)
 </template>
 ```
 
-Or use it as a directive
-
-```js
-import vClickOutside from 'v-click-outside'
-
-<script>
-  export default {
-    directives: {
-      clickOutside: vClickOutside.directive
-    },
-    methods: {
-      onClickOutside (event) {
-        console.log('Clicked outside. Event: ', event)
-      }
-    }
-  };
-</script>
-
-<template>
-  <div v-click-outside="onClickOutside"></div>
-</template>
-```
-
-Or use directive‘s hooks programatically
-
-```vue
-<script>
-import vClickOutside from 'v-click-outside'
-const { bind, unbind } = vClickOutside.directive
-
-export default {
-  name: 'RenderlessExample',
-
-  mounted() {
-    const this._el = document.querySelector('data-ref', 'some-uid')
-    // Note: v-click-outside config or handler needs to be passed to the
-    //       "bind" function 2nd argument as object with a "value" key:
-    //       same as Vue’s directives "binding" format.
-    // https://vuejs.org/v2/guide/custom-directive.html#Directive-Hook-Arguments
-    bind(this._el, { value: this.onOutsideClick })
-  },
-  beforeDestroy() {
-    unbind(this._el)
-  },
-
-  methods: {
-    onClickOutside (event) {
-      console.log('Clicked outside. Event: ', event)
-    }
-  },
-
-  render() {
-    return this.$scopedSlots.default({
-      // Note: you can't pass vue's $refs (ref attribute) via slot-scope,
-      //       and have this.$refs property populated as it will be
-      //       interpreted as a regular html attribute. Workaround it
-      //       with good old data-attr + querySelector combo.
-      props: { 'data-ref': 'some-uid' }
-    })
-  }
-};
-</script>
-```
-
-```vue
-<!-- SomeComponent.vue -->
-<template>
-  <renderless-example v-slot:default="slotScope">
-    <div v-bind="slotScope.props">
-      Transparently bound v-click-outside directive via slotScope
-    </div>
-  </renderless-example>
-</template>
-```
-
-See [#220](https://github.com/ndelvalle/v-click-outside/issues/220) for details or [check-out this demo](https://codesandbox.io/s/v-click-outside-programatic-usage-o9drq)
-
-
-## Example
-
-[![Edit v-click-outside](https://codesandbox.io/static/img/play-codesandbox.svg)](https://codesandbox.io/s/zx7mx8y1ol?module=%2Fsrc%2Fcomponents%2FHelloWorld.vue)
-
-
 ## Detecting Iframe Clicks
 
 To our knowledge, there isn't an idiomatic way to detect a click on a `<iframe>` (`HTMLIFrameElement`).
@@ -168,14 +85,6 @@ Clicks on iframes moves `focus` to its contents’ `window` but don't `bubble` u
 Because of these reasons, the detection mechansim is behind the `detectIframe` flag that you can optionally set to `false` if you find it conflicting with your use-case.
 Any improvements or suggestions to this are welcomed.
 
-
-## Migrate from version 1
-
-The `notouch` modifier is no longer supported, same functionality can be achieved using a middleware function
-
-## Migrate from version 2
-
-The HTML `el` is not sent in the handler function argument any more. Review [this issue](https://github.com/ndelvalle/v-click-outside/issues/137) for more details.
 
 ## License
 
