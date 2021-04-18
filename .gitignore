@@ -4,3 +4,4 @@ coverage
 .DS_Store
 jest_*
 yarn.lock
+.idea
