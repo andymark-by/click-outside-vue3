@@ -4,6 +4,7 @@ Vue 3 directive to react on clicks outside an element without stopping the event
 Great for closing dialogues and menus among other things.
 
 ## Install
+To install the package you must have **git** installed, as the project is not hosted by npm yet
 
 ```bash
 $ npm install --save  andymark-by/vue3-click-outside
