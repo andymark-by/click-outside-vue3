@@ -1,4 +1,4 @@
-# vue3-click-outside
+# click-outside-vue3
 
 Vue 3 directive to react on clicks outside an element without stopping the event propagation.
 Great for closing dialogues and menus among other things.
