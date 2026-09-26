@@ -1,6 +1,6 @@
 {
   "name": "click-outside-vue3",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "description": "Vue 3 directive to react on clicks outside an element",
   "main": "dist/v-click-outside.umd.js",
   "types": "src/index.d.ts",
