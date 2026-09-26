@@ -132,6 +132,8 @@ const onClickOutside = (event) => {
 </template>
 ```
 
+In `<script setup>`, do not name the package's default import `vClickOutside`: Vue treats `vXxx` variables as local directives, which override a globally registered directive, but the imported plugin is not itself a directive. For local registration, assign `vClickOutside` to `clickOutside.directive` as shown above.
+
 ### Options
 
 | Option | Description |
@@ -231,6 +233,10 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 - When `events` includes `click`, a click that starts inside an element and ends outside no longer calls the handler.
 - An options object without a function-valued `handler` now throws an error when the directive is mounted while active, instead of throwing a `TypeError` on the first click. A `null` directive value throws the same error as other invalid values.
 - The package now includes TypeScript declarations and `vue` in `peerDependencies`.
+
+## Development
+
+Run `npm test` and `npm run lint` from the repository root. Start the live Vite example with `npm run example:dev`; it uses the source files in `src/`.
 
 ## License
 

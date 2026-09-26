@@ -1,85 +1,98 @@
+<script setup>
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import clickOutside from 'click-outside-vue3'
+
+const eventLog = ref([])
+const limeEl = ref(null)
+
+const logEvent = (name, event) => {
+  const entry = `${name}: ${event.type}`
+  eventLog.value = [entry, ...eventLog.value].slice(0, 10)
+  console.log(entry)
+}
+
+const onYellowClick = (event) => logEvent('yellow', event)
+const onRedClick = (event) => logEvent('red', event)
+const onRedClickMiddleware = (event) => {
+  logEvent('red middleware', event)
+  return true
+}
+const onLimeClick = (event) => logEvent('lime', event)
+const onBlueClick = (event) => logEvent('blue', event)
+const onToggleClick = (event) => logEvent('toggle', event)
+const onDragClick = (event) => logEvent('drag', event)
+
+const redConfig = {
+  handler: onRedClick,
+  middleware: onRedClickMiddleware,
+  events: ['click'],
+}
+const toggleConfig = reactive({ handler: onToggleClick, isActive: true })
+
+onMounted(() => {
+  clickOutside.directive.beforeMount(limeEl.value, { value: onLimeClick })
+})
+
+onBeforeUnmount(() => {
+  clickOutside.directive.unmounted(limeEl.value)
+})
+</script>
+
 <template>
   <div class="home">
     <img alt="Vue logo" src="../assets/logo.png" />
     <div class="hello">
       <h1>Welcome to v-click-outside example</h1>
 
-      <div class="yellow-box" v-click-outside="onYellowClick">
-        <p>Click Outside Yellow box</p>
+      <div id="yellow-box" v-click-outside="onYellowClick" class="yellow-box">
+        <p>Click outside Yellow box</p>
       </div>
 
-      <div class="red-box" v-click-outside="config">
-        <p>Click Outside Red box</p>
+      <div id="red-box" v-click-outside="redConfig" class="red-box">
+        <p>Click outside Red box</p>
       </div>
 
-      <div class="lime-box" ref="limeEl">
-        <p>Click Outside Lime box</p>
+      <div id="lime-box" ref="limeEl" class="lime-box">
+        <p>Click outside Lime box</p>
       </div>
 
-      <div class="blue-box" v-click-outside="onBlueClick">
-        <p>Click Outside blue box</p>
-        <iframe tabindex="1" class="iframe-button-example" src="/about" />
+      <div id="blue-box" v-click-outside="onBlueClick" class="blue-box">
+        <p>Click outside Blue box</p>
+        <iframe tabindex="1" class="iframe-button-example" src="#/about" />
       </div>
 
-      <iframe class="iframe" src="/about" width="100%" />
+      <div id="toggle-box" v-click-outside="toggleConfig" class="toggle-box">
+        <p>Click outside Toggle box; uncheck to disable the directive</p>
+        <label for="toggle-active">
+          <input
+            id="toggle-active"
+            v-model="toggleConfig.isActive"
+            type="checkbox"
+          />
+          Active
+        </label>
+      </div>
+
+      <div id="drag-box" v-click-outside="onDragClick" class="drag-box">
+        <p>
+          Select text and release the mouse outside this box; the handler will
+          not run
+        </p>
+        <input
+          id="drag-input"
+          value="Select this long text, drag beyond the edge of this box, and release the mouse button outside."
+        />
+      </div>
+
+      <iframe class="iframe" src="#/about" width="100%" />
+
+      <h2>Event log</h2>
+      <ol id="event-log">
+        <li v-for="(entry, index) in eventLog" :key="index">{{ entry }}</li>
+      </ol>
     </div>
   </div>
 </template>
-
-<script>
-import vClickOutside from '../../../src'
-const { bind, unbind } = vClickOutside.directive
-
-export default {
-  name: 'home',
-
-  data() {
-    return {
-      foo: false,
-      config: {
-        handler: this.onRedClick,
-        middleware: this.onRedClickMiddleware,
-        events: ['click'],
-      },
-    }
-  },
-
-  mounted() {
-    bind(this.$refs.limeEl, { value: this.onLimeClick })
-  },
-
-  beforeDestroy() {
-    unbind(this.$refs.limeEl)
-  },
-
-  methods: {
-    onYellowClick(ev) {
-      console.log(
-        '%c Clicked outside Yellow!',
-        'color: yellow; background: black;',
-        ev,
-      )
-    },
-
-    onRedClick(ev) {
-      console.log('%c Clicked outside Red!', 'color: red', ev)
-    },
-
-    onRedClickMiddleware(ev) {
-      console.log('%c Middleware from click outside Red!', 'color: red', ev)
-      return true
-    },
-
-    onLimeClick(ev) {
-      console.log('%cClicked outside Lime!', 'color: lime', ev)
-    },
-
-    onBlueClick(ev) {
-      console.log('%c Clicked outside Blue!', 'color: blue', ev)
-    },
-  },
-}
-</script>
 
 <style>
 .yellow-box {
@@ -114,5 +127,23 @@ export default {
 .iframe {
   border: 1px solid lightgrey;
   margin-top: 1em;
+}
+
+.toggle-box,
+.drag-box {
+  background-color: #e8edf2;
+  margin-top: 1em;
+  padding: 1em;
+}
+
+#drag-input {
+  max-width: 100%;
+  width: 40em;
+}
+
+#event-log {
+  margin: 0 auto 2em;
+  max-width: 40em;
+  text-align: left;
 }
 </style>
