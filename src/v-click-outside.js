@@ -1,120 +1,193 @@
-/**
- * Modified for Vue 3 from https://github.com/ndelvalle/v-click-outside
- * Cf. https://github.com/ndelvalle/v-click-outside/issues/238
- */
-const HANDLERS_PROPERTY = "__v-click-outside";
-const HAS_WINDOWS = typeof window !== "undefined";
-const HAS_NAVIGATOR = typeof navigator !== "undefined";
+const HANDLERS_PROPERTY = '__v-click-outside'
+const HAS_WINDOW = typeof window !== 'undefined'
+const HAS_NAVIGATOR = typeof navigator !== 'undefined'
 const IS_TOUCH =
-  HAS_WINDOWS &&
-  ("ontouchstart" in window ||
-    (HAS_NAVIGATOR && navigator.msMaxTouchPoints > 0));
-const EVENTS = IS_TOUCH ? ["touchstart"] : ["click"];
-const processDirectiveArguments = (bindingValue) => {
-  const isFunction = typeof bindingValue === "function";
-  if (!isFunction && typeof bindingValue !== "object") {
-    throw new Error(
-      "v-click-outside: Binding value must be a function or an object"
-    );
-  }
-  return {
-    handler: isFunction ? bindingValue : bindingValue.handler,
-    middleware: bindingValue.middleware || ((item) => item),
-    events: bindingValue.events || EVENTS,
-    isActive: !(bindingValue.isActive === false),
-    detectIframe: !(bindingValue.detectIframe === false),
-    capture: Boolean(bindingValue.capture),
-  };
-};
-const execHandler = ({ event, handler, middleware }) => {
-  if (middleware(event)) {
-    handler(event);
-  }
-};
-const onFauxIframeClick = ({ el, event, handler, middleware }) => {
-  // Note: on firefox clicking on iframe triggers blur, but only on
-  //       next event loop it becomes document.activeElement
-  // https://stackoverflow.com/q/2381336#comment61192398_23231136
-  setTimeout(() => {
-    const { activeElement } = document;
-    if (
-      activeElement &&
-      activeElement.tagName === "IFRAME" &&
-      !el.contains(activeElement)
-    ) {
-      execHandler({ event, handler, middleware });
+  HAS_WINDOW &&
+  ('ontouchstart' in window ||
+    (HAS_NAVIGATOR && navigator.msMaxTouchPoints > 0))
+const EVENTS = IS_TOUCH ? ['touchstart'] : ['click']
+
+const isInside = (el, event) => {
+  if (typeof event.composedPath === 'function') {
+    const path = event.composedPath()
+    if (Array.isArray(path) && path.length > 0) {
+      return path.indexOf(el) !== -1
     }
-  }, 0);
-};
-const onEvent = ({ el, event, handler, middleware }) => {
-  // Note: composedPath is not supported on IE and Edge, more information here:
-  //       https://developer.mozilla.org/en-US/docs/Web/API/Event/composedPath
-  //       In the meanwhile, we are using el.contains for those browsers, not
-  //       the ideal solution, but using IE or EDGE is not ideal either.
-  const path = event.path || (event.composedPath && event.composedPath());
-  const isClickOutside = path
-    ? path.indexOf(el) < 0
-    : !el.contains(event.target);
-  if (!isClickOutside) {
-    return;
   }
-  execHandler({ event, handler, middleware });
-};
-const beforeMount = (el, { value }) => {
-  const {
-    events,
-    handler,
-    middleware,
-    isActive,
-    detectIframe,
-    capture,
-  } = processDirectiveArguments(value);
-  if (!isActive) {
-    return;
+  return el.contains(event.target)
+}
+
+const normalize = (value) => {
+  let config
+  if (typeof value === 'function') {
+    config = {
+      handler: value,
+      middleware: () => true,
+      events: EVENTS,
+      isActive: true,
+      detectIframe: true,
+      capture: false,
+    }
+  } else if (value !== null && typeof value === 'object') {
+    config = {
+      handler: value.handler,
+      middleware: value.middleware || (() => true),
+      events: value.events || EVENTS,
+      isActive: value.isActive !== false,
+      detectIframe: value.detectIframe !== false,
+      capture: Boolean(value.capture),
+    }
+  } else {
+    throw new Error(
+      'v-click-outside: Binding value must be a function or an object',
+    )
   }
-  el[HANDLERS_PROPERTY] = events.map((eventName) => ({
-    event: eventName,
-    srcTarget: document.documentElement,
-    handler: (event) => onEvent({ el, event, handler, middleware }),
-    capture,
-  }));
-  if (detectIframe) {
-    const detectIframeEvent = {
-      event: "blur",
-      srcTarget: window,
-      handler: (event) => onFauxIframeClick({ el, event, handler, middleware }),
-      capture,
-    };
-    el[HANDLERS_PROPERTY] = [...el[HANDLERS_PROPERTY], detectIframeEvent];
+  if (config.isActive && typeof config.handler !== 'function') {
+    throw new Error('v-click-outside: Binding value handler must be a function')
   }
-  el[HANDLERS_PROPERTY].forEach(({ event, srcTarget, handler: thisHandler }) =>
+  return config
+}
+
+const teardown = (el) => {
+  const state = el[HANDLERS_PROPERTY]
+  if (!state) {
+    return
+  }
+  if (state.timeout !== null) {
+    clearTimeout(state.timeout)
+  }
+  if (state.registered) {
+    state.listeners.forEach(
+      ({ target, eventName, listener, removeOptions }) => {
+        target.removeEventListener(eventName, listener, removeOptions)
+      },
+    )
+  }
+  delete el[HANDLERS_PROPERTY]
+}
+
+const mount = (el, config) => {
+  const state = {
+    config: { ...config, events: [...config.events] },
+    listeners: [],
+    timeout: null,
+    registered: false,
+    pointerDownInside: false,
+  }
+  el[HANDLERS_PROPERTY] = state
+  if (!config.isActive) {
+    return
+  }
+
+  const onEvent = (event) => {
+    if (isInside(el, event)) {
+      return
+    }
+    // A press that started inside and ended outside is a drag (e.g. text
+    // selection), not a click outside. Keyboard-triggered clicks have detail 0.
+    if (
+      event.type === 'click' &&
+      event.detail !== 0 &&
+      state.pointerDownInside
+    ) {
+      state.pointerDownInside = false
+      return
+    }
+    if (state.config.middleware(event)) {
+      state.config.handler(event)
+    }
+  }
+  const onPointerDown = (event) => {
+    state.pointerDownInside = isInside(el, event)
+  }
+  const onBlur = (event) => {
+    // Note: on firefox clicking on iframe triggers blur, but only on
+    //       next event loop it becomes document.activeElement
+    // https://stackoverflow.com/q/2381336#comment61192398_23231136
     setTimeout(() => {
-      // Note: More info about this implementation can be found here:
-      //       https://github.com/ndelvalle/v-click-outside/issues/137
-      if (!el[HANDLERS_PROPERTY]) {
-        return;
+      if (el[HANDLERS_PROPERTY] !== state) {
+        return
       }
-      srcTarget.addEventListener(event, thisHandler, capture);
+      const { activeElement } = document
+      if (
+        activeElement &&
+        activeElement.tagName === 'IFRAME' &&
+        !el.contains(activeElement) &&
+        state.config.middleware(event)
+      ) {
+        state.config.handler(event)
+      }
     }, 0)
-  );
-};
-const unmounted = (el) => {
-  const handlers = el[HANDLERS_PROPERTY] || [];
-  handlers.forEach(({ event, srcTarget, handler, capture }) =>
-    srcTarget.removeEventListener(event, handler, capture)
-  );
-  delete el[HANDLERS_PROPERTY];
-};
-const updated = (el, { value, oldValue }) => {
-  if (JSON.stringify(value) === JSON.stringify(oldValue)) {
-    return;
   }
-  unmounted(el);
-  beforeMount(el, { value });
-};
-const directive = {
-  beforeMount,
-  updated,
-  unmounted,
-};
-export default HAS_WINDOWS ? directive : {};
+
+  state.listeners = state.config.events.map((eventName) => ({
+    target: document.documentElement,
+    eventName,
+    listener: onEvent,
+    addOptions: state.config.capture,
+    removeOptions: state.config.capture,
+  }))
+  if (state.config.detectIframe) {
+    state.listeners.push({
+      target: window,
+      eventName: 'blur',
+      listener: onBlur,
+      addOptions: state.config.capture,
+      removeOptions: state.config.capture,
+    })
+  }
+  if (state.config.events.indexOf('click') !== -1) {
+    state.listeners.push({
+      target: document.documentElement,
+      eventName: 'pointerdown',
+      listener: onPointerDown,
+      addOptions: { capture: true, passive: true },
+      removeOptions: { capture: true },
+    })
+  }
+
+  // Note: More info about this implementation can be found here:
+  //       https://github.com/ndelvalle/v-click-outside/issues/137
+  state.timeout = setTimeout(() => {
+    state.timeout = null
+    state.listeners.forEach(({ target, eventName, listener, addOptions }) => {
+      target.addEventListener(eventName, listener, addOptions)
+    })
+    state.registered = true
+  }, 0)
+}
+
+const beforeMount = (el, { value }) => {
+  const config = normalize(value)
+  teardown(el)
+  mount(el, config)
+}
+
+const updated = (el, { value }) => {
+  const config = normalize(value)
+  const state = el[HANDLERS_PROPERTY]
+  // Compare with the stored snapshot, not binding.oldValue: when the config
+  // object is mutated in place, oldValue and value are the same object.
+  if (
+    state &&
+    state.config.isActive === config.isActive &&
+    state.config.detectIframe === config.detectIframe &&
+    state.config.capture === config.capture &&
+    state.config.events.length === config.events.length &&
+    state.config.events.every(
+      (eventName, index) => eventName === config.events[index],
+    )
+  ) {
+    state.config.handler = config.handler
+    state.config.middleware = config.middleware
+    return
+  }
+  teardown(el)
+  mount(el, config)
+}
+
+const unmounted = (el) => {
+  teardown(el)
+}
+
+export default HAS_WINDOW ? { beforeMount, updated, unmounted, deep: true } : {}

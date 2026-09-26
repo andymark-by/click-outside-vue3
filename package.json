@@ -3,11 +3,13 @@
   "version": "4.0.1",
   "description": "Vue 3 directive to react on clicks outside an element",
   "main": "dist/v-click-outside.umd.js",
+  "types": "src/index.d.ts",
   "umd:main": "dist/v-click-outside.umd.js",
   "source": "src/index.js",
   "scripts": {
     "test": "jest --coverage",
     "test:watch": "jest --colors --watch",
+    "test:types": "tsc -p test/types",
     "coverage": "open coverage/lcov-report/index.html",
     "build": "microbundle --entry src/index.js --target browser --format umd --name v-click-outside",
     "lint": "eslint . --ext .js",
@@ -32,6 +34,9 @@
     "url": "https://github.com/andymark-by/click-outside-vue3/issues"
   },
   "homepage": "https://github.com/andymark-by/click-outside-vue3#readme",
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
   "devDependencies": {
     "@babel/preset-env": "^7.11.0",
     "babel-core": "^6.26.3",
@@ -49,12 +54,14 @@
     "microbundle": "^0.13.0",
     "np": "^7.2.0",
     "prettier": "^2.1.1",
-    "pretty-quick": "^3.0.0"
+    "pretty-quick": "^3.0.0",
+    "typescript": "^5.9.3",
+    "vue": "^3.5.43"
   },
   "jest": {
     "collectCoverage": true,
     "collectCoverageFrom": [
-      "src/**"
+      "src/**/*.js"
     ],
     "roots": [
       "test/"
