@@ -1,18 +1,20 @@
-import { createApp, type Directive } from 'vue'
-import plugin, {
-  type ClickOutsideBinding,
-  type ClickOutsideDirective,
-  type ClickOutsideHandler,
-  type ClickOutsideMiddleware,
-  type ClickOutsideOptions,
+import { createApp, type App, type Directive } from 'vue'
+import plugin from '../../src/index'
+import { install, directive } from '../../src/index'
+import type {
+  ClickOutsideBinding,
+  ClickOutsideDirective,
+  ClickOutsideHandler,
+  ClickOutsideMiddleware,
+  ClickOutsideOptions,
 } from '../../src/index'
-// @ts-expect-error
-import { directive } from '../../src/index'
 
 createApp({}).use(plugin)
 
 const vueDirective: Directive = plugin.directive
 const clickOutsideDirective: ClickOutsideDirective = plugin.directive
+const namedDirective: ClickOutsideDirective = directive
+const namedInstall: (app: App) => void = install
 const handler: ClickOutsideHandler = (event: Event) => {
   void event.type
 }
@@ -39,7 +41,8 @@ const optionsBinding: ClickOutsideBinding = options
 
 void vueDirective
 void clickOutsideDirective
-void directive
+void namedDirective
+void namedInstall
 void handler
 void middleware
 void functionBinding

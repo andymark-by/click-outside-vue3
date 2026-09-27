@@ -141,7 +141,7 @@ In `<script setup>`, do not name the package's default import `vClickOutside`: V
 | `handler` | Required when the directive value is an options object. A function with the signature `(event) => void`. |
 | `middleware` | Optional synchronous function with the signature `(event) => boolean`. It is called only for outside events. Returning `true` allows the handler to run; when omitted, all outside events pass. |
 | `events` | Events to listen for. Defaults to `['touchstart']` on touch devices (`'ontouchstart' in window`), and `['click']` otherwise. |
-| `isActive` | Whether the directive is active. Defaults to `true`; can be changed at runtime, including by mutating a reactive config object. |
+| `isActive` | Whether the directive is active. Defaults to `true`. In-place mutations of a reactive config object are tracked on Vue 3.1.5+ through the directive's `deep` option. On earlier Vue 3, replace the config object with a new object or a computed value. |
 | `detectIframe` | Detects clicks on iframes. Defaults to `true`; see [Detecting Iframe Clicks](#detecting-iframe-clicks). |
 | `capture` | Registers the listener in the capture phase. Defaults to `false`; useful when another handler calls `stopPropagation`. |
 
@@ -197,6 +197,8 @@ Browsers treat document-level `touchstart` listeners as passive, so `event.preve
 
 The package includes TypeScript declarations and exports `ClickOutsideOptions`, `ClickOutsideBinding`, `ClickOutsideHandler`, `ClickOutsideMiddleware`, and `ClickOutsideDirective`. Handlers can accept a narrower event type, such as `MouseEvent`.
 
+The types work with `moduleResolution` set to `node`, `bundler`, or `nodenext` (including ESM projects), with or without `esModuleInterop`; use a default import for the package.
+
 ```vue
 <script setup lang="ts">
 import type { ClickOutsideOptions } from 'click-outside-vue3'
@@ -237,6 +239,8 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 ## Development
 
 Run `npm test` and `npm run lint` from the repository root. Start the live Vite example with `npm run example:dev`; it uses the source files in `src/`.
+
+Run `npm run test:compat` for the compatibility matrix covering Vue versions, bundlers, TypeScript, Node, ES5 syntax, and comparison with the previous release. It requires network access and takes a few minutes (longer on the first run while packages download).
 
 ## License
 

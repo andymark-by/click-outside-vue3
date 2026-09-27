@@ -16,11 +16,17 @@ export interface ClickOutsideOptions {
 }
 export type ClickOutsideBinding = ClickOutsideHandler | ClickOutsideOptions
 export type ClickOutsideDirective = Directive<HTMLElement, ClickOutsideBinding>
+
+export declare const install: (app: App) => void
+export declare const directive: ClickOutsideDirective
+
 declare const plugin: {
-  install(app: App): void
+  install: typeof install
   directive: ClickOutsideDirective
 }
+
 export default plugin
+
 declare module 'vue' {
   interface GlobalDirectives {
     vClickOutside: ClickOutsideDirective

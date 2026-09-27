@@ -1,5 +1,7 @@
 rollup.config.js
+scripts
 coverage
 test
 yarn.lock
 example
+tsconfig.build.json

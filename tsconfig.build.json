@@ -1,0 +1,6 @@
+{
+  "compilerOptions": {
+    "declaration": false,
+    "declarationDir": null
+  }
+}
