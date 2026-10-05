@@ -401,21 +401,73 @@ const scenarios = [
     },
   },
   {
-    case: 'null binding throws on mount',
-    kind: 'same',
-    compare: (oldResult, newResult) => oldResult.threw && newResult.threw,
+    case: 'null binding',
+    kind: 'changed',
+    oldExpected: { phase: 'mount', name: 'TypeError' },
+    newExpected: 0,
     run: async (env) => {
-      const error = mount(env, '<div v-click-outside="config"></div>', {
-        config: null,
+      const error = mount(
+        env,
+        '<div><div v-click-outside="config"></div><div id="outside"></div></div>',
+        {
+          config: null,
+        },
+      )
+      if (error) {
+        return { phase: 'mount', name: errorInfo(error).name }
+      }
+      await waitTimers(env.window)
+      await waitTimers(env.window)
+      let clickError
+      env.window.addEventListener('error', (event) => {
+        clickError = event.error || new Error(event.message)
+        event.preventDefault()
       })
-      return error ? { threw: true, ...errorInfo(error) } : { threw: false }
+      env.dom.virtualConsole.on('jsdomError', (event) => {
+        clickError ||= event.detail || event
+      })
+      dispatch(env, '#outside')
+      return clickError
+        ? { phase: 'click', name: errorInfo(clickError).name }
+        : 0
     },
   },
   {
-    case: 'missing handler error phase',
+    case: 'conditional binding',
     kind: 'changed',
-    oldExpected: { phase: 'click', name: 'TypeError' },
-    newExpected: { phase: 'mount', name: 'Error' },
+    oldExpected: { phase: 'mount' },
+    newExpected: [0, 1],
+    run: async (env) => {
+      let calls = 0
+      const open = env.Vue.ref(false)
+      const onOut = () => {
+        calls += 1
+      }
+      const error = mount(
+        env,
+        '<div><div v-click-outside="open && onOut"></div><div id="outside"></div></div>',
+        { open, onOut },
+      )
+      if (error) {
+        return { phase: 'mount' }
+      }
+      await waitTimers(env.window)
+      await waitTimers(env.window)
+      dispatch(env, '#outside')
+      const beforeCalls = calls
+      open.value = true
+      await env.Vue.nextTick()
+      await waitTimers(env.window)
+      await waitTimers(env.window)
+      dispatch(env, '#outside')
+      return [beforeCalls, calls - beforeCalls]
+    },
+  },
+  {
+    case: 'object without handler',
+    kind: 'changed',
+    oldExpected: { phase: 'click' },
+    newExpected: { phase: 'none' },
     run: async (env) => {
       const mountError = mount(
         env,
@@ -423,7 +475,7 @@ const scenarios = [
         { config: { events: ['click'] } },
       )
       if (mountError) {
-        return { phase: 'mount', name: errorInfo(mountError).name }
+        return { phase: 'mount' }
       }
       await waitTimers(env.window)
       await waitTimers(env.window)
@@ -440,9 +492,7 @@ const scenarios = [
       } catch (error) {
         clickError = error
       }
-      return clickError
-        ? { phase: 'click', name: errorInfo(clickError).name }
-        : { phase: 'none' }
+      return clickError ? { phase: 'click' } : { phase: 'none' }
     },
   },
 ]

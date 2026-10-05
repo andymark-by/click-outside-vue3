@@ -53,6 +53,57 @@ describe('Vue integration', () => {
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(handler).toHaveBeenCalledTimes(1)
   })
+
+  it('enables and disables an open && close binding', async () => {
+    const open = ref(false)
+    const close = jest.fn()
+    app = createApp({
+      setup: () => ({ open, close }),
+      template: '<div v-click-outside="open && close">inside</div>',
+    })
+    app.use(plugin)
+    app.mount(container)
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(close).not.toHaveBeenCalled()
+    open.value = true
+    await nextTick()
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(close).toHaveBeenCalledTimes(1)
+    open.value = false
+    await nextTick()
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts an omitted child onClose prop and later enables it', async () => {
+    const close = jest.fn()
+    const childProps = ref({})
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const Child = defineComponent({
+      props: { onClose: Function },
+      template: '<div v-click-outside="{ handler: onClose }">inside</div>',
+    })
+    app = createApp({
+      components: { Child },
+      setup: () => ({ childProps }),
+      template: '<Child v-bind="childProps" />',
+    })
+    app.use(plugin)
+    expect(() => app.mount(container)).not.toThrow()
+    jest.runAllTimers()
+    expect(warn).not.toHaveBeenCalled()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(close).not.toHaveBeenCalled()
+    childProps.value = { onClose: close }
+    await nextTick()
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(warn).not.toHaveBeenCalled()
+  })
   ;(supportsDeepDirectives ? it : it.skip)(
     'reacts to in-place isActive changes',
     async () => {

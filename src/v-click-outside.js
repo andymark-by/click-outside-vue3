@@ -18,34 +18,32 @@ const isInside = (el, event) => {
 }
 
 const normalize = (value) => {
-  let config
-  if (typeof value === 'function') {
-    config = {
-      handler: value,
-      middleware: () => true,
-      events: EVENTS,
-      isActive: true,
-      detectIframe: true,
-      capture: false,
-    }
-  } else if (value !== null && typeof value === 'object') {
-    config = {
-      handler: value.handler,
-      middleware: value.middleware || (() => true),
-      events: value.events || EVENTS,
-      isActive: value.isActive !== false,
-      detectIframe: value.detectIframe !== false,
-      capture: Boolean(value.capture),
-    }
-  } else {
+  const binding = typeof value === 'function' ? { handler: value } : value
+  const source =
+    binding === undefined || binding === null || binding === false
+      ? {}
+      : binding
+  if (typeof source !== 'object' || source === null) {
     throw new Error(
       'v-click-outside: Binding value must be a function or an object',
     )
   }
-  if (config.isActive && typeof config.handler !== 'function') {
+  const hasHandler = source.handler !== undefined && source.handler !== null
+  if (
+    source.isActive !== false &&
+    hasHandler &&
+    typeof source.handler !== 'function'
+  ) {
     throw new Error('v-click-outside: Binding value handler must be a function')
   }
-  return config
+  return {
+    handler: source.handler,
+    middleware: source.middleware || (() => true),
+    events: source.events || EVENTS,
+    isActive: source.isActive !== false && hasHandler,
+    detectIframe: source.detectIframe !== false,
+    capture: Boolean(source.capture),
+  }
 }
 
 const teardown = (el) => {

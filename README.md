@@ -136,9 +136,11 @@ In `<script setup>`, do not name the package's default import `vClickOutside`: V
 
 ### Options
 
+Set the directive value to `null`, `undefined`, or `false` to disable it, for example with `v-click-outside="isOpen && close"`. An options object without `handler` also disables it, which supports optional function props such as `v-click-outside="{ handler: onClose }"`.
+
 | Option | Description |
 | --- | --- |
-| `handler` | Required when the directive value is an options object. A function with the signature `(event) => void`. |
+| `handler` | A function with the signature `(event) => void`. If omitted, the directive does nothing. |
 | `middleware` | Optional synchronous function with the signature `(event) => boolean`. It is called only for outside events. Returning `true` allows the handler to run; when omitted, all outside events pass. |
 | `events` | Events to listen for. Defaults to `['touchstart']` on touch devices (`'ontouchstart' in window`), and `['click']` otherwise. |
 | `isActive` | Whether the directive is active. Defaults to `true`. In-place mutations of a reactive config object are tracked on Vue 3.1.5+ through the directive's `deep` option. On earlier Vue 3, replace the config object with a new object or a computed value. |
@@ -233,14 +235,17 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 ## Upgrading from 4.0
 
 - When `events` includes `click`, a click that starts inside an element and ends outside no longer calls the handler.
-- An options object without a function-valued `handler` now throws an error when the directive is mounted while active, instead of throwing a `TypeError` on the first click. A `null` directive value throws the same error as other invalid values.
+- An options object without `handler` now disables the directive (in 4.0, it threw a `TypeError` on the first outside click); a present non-function `handler` throws on mount or update while the directive is active, but not with `isActive: false`. `null`, `undefined`, and `false` now disable the directive (they threw errors in 4.0); `true`, strings, and numbers still throw.
 - The package now includes TypeScript declarations and `vue` in `peerDependencies`.
 
 ## Development
 
 Run `npm test` and `npm run lint` from the repository root. Start the live Vite example with `npm run example:dev`; it uses the source files in `src/`.
 
-Run `npm run test:compat` for the compatibility matrix covering Vue versions, bundlers, TypeScript, Node, ES5 syntax, and comparison with the previous release. It requires network access and takes a few minutes (longer on the first run while packages download).
+Run `npm run test:compat` for the matrix: Vue versions, SSR with hydration, bundlers, TypeScript and vue-tsc template checks,
+real browsers (Chromium, Firefox, WebKit), Node, ES5 syntax, and comparison with 4.0.1.
+The browser suite needs Docker (`mcr.microsoft.com/playwright:v1.62.1-noble`) or locally installed Playwright browsers.
+Use `--only <suites>` to select suites and `--max-minutes <n>` to stop starting new suites after `n` minutes. Network access is required; the first run takes longer while packages download.
 
 ## License
 

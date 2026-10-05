@@ -7,14 +7,20 @@ export type ClickOutsideMiddleware = {
   bivarianceHack(event: Event): boolean
 }['bivarianceHack']
 export interface ClickOutsideOptions {
-  handler: ClickOutsideHandler
+  handler?: ClickOutsideHandler | Function
   middleware?: ClickOutsideMiddleware
   events?: readonly string[]
   isActive?: boolean
   detectIframe?: boolean
   capture?: boolean
 }
-export type ClickOutsideBinding = ClickOutsideHandler | ClickOutsideOptions
+export type ClickOutsideBinding =
+  | ClickOutsideHandler
+  | Function
+  | ClickOutsideOptions
+  | null
+  | undefined
+  | false
 export type ClickOutsideDirective = Directive<HTMLElement, ClickOutsideBinding>
 
 export declare const install: (app: App) => void

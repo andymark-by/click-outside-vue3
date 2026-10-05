@@ -5,10 +5,20 @@ import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
 import { createContext, shellQuote, tail } from './lib.mjs'
 
-const suites = ['es5', 'node', 'vue', 'diff', 'bundlers', 'typescript']
+const suites = [
+  'es5',
+  'node',
+  'vue',
+  'diff',
+  'ssr',
+  'bundlers',
+  'browsers',
+  'typescript',
+  'templates',
+]
 
 function parseArgs(argv) {
-  const options = { only: null, keep: false, list: false }
+  const options = { only: null, keep: false, list: false, maxMinutes: 30 }
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -19,6 +29,13 @@ function parseArgs(argv) {
       options.keep = true
     } else if (arg === '--list') {
       options.list = true
+    } else if (arg === '--max-minutes' && argv[index + 1]) {
+      const minutes = Number(argv[index + 1])
+      if (!Number.isFinite(minutes) || minutes <= 0) {
+        throw new Error('--max-minutes must be a positive number')
+      }
+      options.maxMinutes = minutes
+      index += 1
     } else {
       throw new Error(`Unknown or incomplete argument: ${arg}`)
     }
@@ -142,6 +159,7 @@ async function main() {
     return
   }
 
+  const startedAt = Date.now()
   const repoRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
     '../..',
@@ -193,40 +211,57 @@ async function main() {
     results.push(tarballResult(preparation, tarball, repoRoot))
     const ctx = createContext({ repoRoot, tmpRoot, tarball })
     for (const name of selected) {
-      const started = Date.now()
-      ctx.log(`Running ${name}`)
-      const modulePath = path.join(
-        repoRoot,
-        'scripts',
-        'compat',
-        'suites',
-        `${name}.mjs`,
-      )
-      if (!fs.existsSync(modulePath)) {
+      if (Date.now() - startedAt >= options.maxMinutes * 60 * 1000) {
         results.push({
           suite: name,
-          case: 'module',
+          case: 'skipped: global time limit',
           status: 'fail',
-          detail: 'suite module missing',
+          detail: `${options.maxMinutes} minute limit reached`,
         })
+        ctx.log(`${name}: skipped after global time limit`)
       } else {
-        try {
-          const suite = await import(`./suites/${name}.mjs`)
-          const suiteResults = await suite.run(ctx)
-          if (!Array.isArray(suiteResults)) {
-            throw new Error('suite did not return results')
-          }
-          results.push(...suiteResults)
-        } catch (error) {
+        const started = Date.now()
+        ctx.log(`Running ${name}`)
+        const modulePath = path.join(
+          repoRoot,
+          'scripts',
+          'compat',
+          'suites',
+          `${name}.mjs`,
+        )
+        if (!fs.existsSync(modulePath)) {
           results.push({
             suite: name,
-            case: 'suite',
+            case: 'module',
             status: 'fail',
-            detail: tail(error.message, 1),
+            detail: 'suite module missing',
           })
+        } else {
+          try {
+            const suite = await import(`./suites/${name}.mjs`)
+            const suiteResults = await suite.run(ctx)
+            if (!Array.isArray(suiteResults)) {
+              throw new Error('suite did not return results')
+            }
+            results.push(
+              ...suiteResults.map((result) =>
+                /timed out/i.test(String(result.detail || ''))
+                  ? { ...result, status: 'fail' }
+                  : result,
+              ),
+            )
+          } catch (error) {
+            results.push({
+              suite: name,
+              case: 'suite',
+              status: 'fail',
+              detail: tail(error.message, 1),
+            })
+          }
         }
+        const elapsedSeconds = ((Date.now() - started) / 1000).toFixed(1)
+        ctx.log(`${name}: completed in ${elapsedSeconds}s`)
       }
-      ctx.log(`${name}: ${((Date.now() - started) / 1000).toFixed(1)}s`)
     }
 
     if (printTable(results) > 0) {
@@ -236,7 +271,11 @@ async function main() {
     if (options.keep) {
       console.error(`Temporary files kept at ${tmpRoot}`)
     } else {
-      fs.rmSync(tmpRoot, { recursive: true, force: true })
+      try {
+        fs.rmSync(tmpRoot, { recursive: true, force: true })
+      } catch (error) {
+        console.error(`Warning: could not remove ${tmpRoot}: ${error.message}`)
+      }
     }
   }
 }

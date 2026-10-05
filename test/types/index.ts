@@ -37,7 +37,21 @@ const options: ClickOutsideOptions = {
 const functionBinding: ClickOutsideBinding = (event: MouseEvent) => {
   void event.button
 }
+const fn: Function = () => {}
+const broadFunctionBinding: ClickOutsideBinding = fn
+const broadOptionHandler: ClickOutsideOptions['handler'] = fn
 const optionsBinding: ClickOutsideBinding = options
+const nullBinding: ClickOutsideBinding = null
+const undefinedBinding: ClickOutsideBinding = undefined
+const falseBinding: ClickOutsideBinding = false
+const open = false
+const conditionalBinding: ClickOutsideBinding =
+  (open as boolean) && (() => {})
+const inactiveOptions: ClickOutsideOptions = { isActive: false }
+const undefinedHandlerOptions: ClickOutsideOptions = {
+  handler: undefined,
+  isActive: false,
+}
 
 void vueDirective
 void clickOutsideDirective
@@ -46,7 +60,15 @@ void namedInstall
 void handler
 void middleware
 void functionBinding
+void broadFunctionBinding
+void broadOptionHandler
 void optionsBinding
+void nullBinding
+void undefinedBinding
+void falseBinding
+void conditionalBinding
+void inactiveOptions
+void undefinedHandlerOptions
 
 // @ts-expect-error
 const invalidHandler: ClickOutsideOptions = { handler: 1 }
@@ -55,9 +77,12 @@ const invalidEvents: ClickOutsideOptions = { handler, events: 'click' }
 // @ts-expect-error
 const extraField: ClickOutsideOptions = { handler, extra: true }
 // @ts-expect-error
-const missingHandler: ClickOutsideOptions = { isActive: false }
+const invalidBinding: ClickOutsideBinding = 'click'
+// @ts-expect-error
+const invalidTrueBinding: ClickOutsideBinding = true
 
 void invalidHandler
 void invalidEvents
 void extraField
-void missingHandler
+void invalidBinding
+void invalidTrueBinding

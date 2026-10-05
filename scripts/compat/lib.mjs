@@ -16,25 +16,65 @@ export function shellQuote(value) {
 }
 
 export function createContext({ repoRoot, tmpRoot, tarball }) {
-  const sh = (cmd, { cwd = repoRoot, env = {} } = {}) => {
-    const result = spawnSync('bash', ['-lc', cmd], {
-      cwd,
-      env: { ...process.env, ...env },
+  const timeoutCheck = spawnSync(
+    'bash',
+    ['-lc', 'command -v timeout || command -v gtimeout'],
+    {
       encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
+      timeout: 5000,
+      killSignal: 'SIGKILL',
+    },
+  )
+  const timeoutCommand =
+    timeoutCheck.status === 0
+      ? timeoutCheck.stdout.trim().split('\n').pop()
+      : null
+  const hasTimeout = Boolean(timeoutCommand)
+
+  const sh = (cmd, { cwd = repoRoot, env = {}, timeoutSec = 600 } = {}) => {
+    const requestedSeconds = Number(timeoutSec)
+    const seconds =
+      Number.isFinite(requestedSeconds) && requestedSeconds > 0
+        ? requestedSeconds
+        : 600
+    const started = Date.now()
+    const result = spawnSync(
+      hasTimeout ? timeoutCommand : 'bash',
+      hasTimeout
+        ? ['-k', '10', String(seconds), 'bash', '-lc', cmd]
+        : ['-lc', cmd],
+      {
+        cwd,
+        env: { ...process.env, ...env },
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: hasTimeout ? undefined : seconds * 1000,
+        killSignal: 'SIGKILL',
+      },
+    )
+    const elapsed = Date.now() - started
+    const timedOut = hasTimeout
+      ? result.status === 124 ||
+        ((result.status === 137 || result.signal === 'SIGKILL') &&
+          elapsed >= seconds * 1000)
+      : result.error?.code === 'ETIMEDOUT'
+    const stderr = result.stderr || String(result.error || '')
 
     return {
-      code: result.status ?? 1,
+      code: timedOut ? 124 : result.status ?? 1,
       stdout: result.stdout || '',
-      stderr: result.stderr || String(result.error || ''),
+      stderr: timedOut
+        ? [stderr.trimEnd(), `timed out after ${seconds}s`]
+            .filter(Boolean)
+            .join('\n')
+        : stderr,
     }
   }
 
   const npmInstall = (dir, packages) => {
     fs.mkdirSync(dir, { recursive: true })
     if (!fs.existsSync(path.join(dir, 'package.json'))) {
-      const init = sh('npm init -y', { cwd: dir })
+      const init = sh('npm init -y', { cwd: dir, timeoutSec: 600 })
       if (init.code !== 0) {
         throw new Error(tail(`${init.stdout}\n${init.stderr}`))
       }
@@ -47,7 +87,7 @@ export function createContext({ repoRoot, tmpRoot, tarball }) {
     const packageArgs = packages.map(shellQuote).join(' ')
     const install = sh(
       `npm install --no-audit --no-fund --loglevel=error ${packageArgs}`,
-      { cwd: dir },
+      { cwd: dir, timeoutSec: 600 },
     )
     if (install.code !== 0) {
       throw new Error(tail(`${install.stdout}\n${install.stderr}`))

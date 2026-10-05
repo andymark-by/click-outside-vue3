@@ -102,7 +102,7 @@ describe('directive', () => {
     expect(directive).not.toHaveProperty('unbind')
   })
 
-  it.each([undefined, null, 'click', 1, true, false])(
+  it.each(['click', 1, true])(
     'rejects invalid beforeMount value %p',
     (value) => {
       expect(() => directive.beforeMount(element(), { value })).toThrow(
@@ -111,19 +111,63 @@ describe('directive', () => {
     },
   )
 
-  it('rejects an active object without a function handler', () => {
-    expect(() => directive.beforeMount(element(), { value: {} })).toThrow(
-      'v-click-outside: Binding value handler must be a function',
-    )
-    expect(() =>
-      directive.beforeMount(element(), { value: { handler: 1 } }),
-    ).toThrow('v-click-outside: Binding value handler must be a function')
+  it.each([undefined, null, false])(
+    'accepts disabled beforeMount value %p without listeners',
+    (value) => {
+      expect(() => directive.beforeMount(element(), { value })).not.toThrow()
+      jest.runAllTimers()
+      expect(documentAdd).not.toHaveBeenCalled()
+      expect(windowAdd).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    {},
+    { handler: undefined },
+    { handler: null },
+    { events: ['click'] },
+  ])('accepts object without handler %p without listeners', (value) => {
+    expect(() => directive.beforeMount(element(), { value })).not.toThrow()
+    jest.runAllTimers()
+    expect(documentAdd).not.toHaveBeenCalled()
+    expect(windowAdd).not.toHaveBeenCalled()
   })
+
+  it.each([{ handler: 'x' }, { handler: 1 }])(
+    'rejects a non-function handler %p',
+    (value) => {
+      expect(() => directive.beforeMount(element(), { value })).toThrow(
+        'v-click-outside: Binding value handler must be a function',
+      )
+    },
+  )
 
   it('accepts an inactive object without a handler', () => {
     mount({ isActive: false })
     expect(documentAdd).not.toHaveBeenCalled()
     expect(windowAdd).not.toHaveBeenCalled()
+  })
+
+  it('accepts an inactive object with a non-function handler', () => {
+    const el = element()
+    expect(() =>
+      directive.beforeMount(el, {
+        value: { handler: 'x', isActive: false },
+      }),
+    ).not.toThrow()
+    jest.runAllTimers()
+    expect(documentAdd).not.toHaveBeenCalled()
+    expect(windowAdd).not.toHaveBeenCalled()
+  })
+
+  it('enables a handler after an inactive non-function value', () => {
+    const el = mount({ handler: 'x', isActive: false })
+    directive.updated(el, { value: { handler: jest.fn() } })
+    expect(documentAdd).not.toHaveBeenCalled()
+    expect(windowAdd).not.toHaveBeenCalled()
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    expect(windowAdd).toHaveBeenCalledTimes(1)
   })
 
   it('registers click on documentElement', () => {
@@ -293,12 +337,74 @@ describe('directive', () => {
     expect(() => directive.updated(el, { value: 'invalid' })).toThrow(
       'v-click-outside: Binding value must be a function or an object',
     )
-    expect(() => directive.updated(el, { value: null })).toThrow(
+    expect(() => directive.updated(el, { value: 1 })).toThrow(
       'v-click-outside: Binding value must be a function or an object',
     )
-    expect(() => directive.updated(el, { value: {} })).toThrow(
+    expect(() => directive.updated(el, { value: true })).toThrow(
+      'v-click-outside: Binding value must be a function or an object',
+    )
+    expect(() => directive.updated(el, { value: { handler: 'x' } })).toThrow(
       'v-click-outside: Binding value handler must be a function',
     )
+  })
+
+  it('disables and re-enables an object handler through updated', () => {
+    const handler = jest.fn()
+    const el = mount({ handler })
+    expect(() =>
+      directive.updated(el, { value: { handler: undefined } }),
+    ).not.toThrow()
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    expect(windowAdd).toHaveBeenCalledTimes(1)
+    expectRemoved(documentAdd, documentRemove)
+    expectRemoved(windowAdd, windowRemove)
+    click(document.body)
+    expect(handler).not.toHaveBeenCalled()
+    directive.updated(el, { value: { handler } })
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(4)
+    expect(windowAdd).toHaveBeenCalledTimes(2)
+    click(document.body)
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    null,
+    false,
+    {},
+    { handler: undefined },
+    { handler: null },
+    { events: ['click'] },
+  ])('accepts disabled updated value %p without new listeners', (value) => {
+    const el = mount(jest.fn())
+    expect(() => directive.updated(el, { value })).not.toThrow()
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    expect(windowAdd).toHaveBeenCalledTimes(1)
+    expectRemoved(documentAdd, documentRemove)
+    expectRemoved(windowAdd, windowRemove)
+  })
+
+  it('removes all listeners when updated from a function to undefined', () => {
+    const el = mount(jest.fn())
+    directive.updated(el, { value: undefined })
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    expect(windowAdd).toHaveBeenCalledTimes(1)
+    expectRemoved(documentAdd, documentRemove)
+    expectRemoved(windowAdd, windowRemove)
+  })
+
+  it('registers after enabling an undefined binding', () => {
+    const el = mount(undefined)
+    directive.updated(el, { value: jest.fn() })
+    expect(documentAdd).not.toHaveBeenCalled()
+    expect(windowAdd).not.toHaveBeenCalled()
+    jest.runAllTimers()
+    expect(documentAdd).toHaveBeenCalledTimes(2)
+    expect(windowAdd).toHaveBeenCalledTimes(1)
   })
 
   it('keeps listeners for active to active', () => {
