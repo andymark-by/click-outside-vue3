@@ -132,26 +132,26 @@ const onClickOutside = (event) => {
 </template>
 ```
 
-In `<script setup>`, do not name the package's default import `vClickOutside`: Vue treats `vXxx` variables as local directives, which override a globally registered directive, but the imported plugin is not itself a directive. For local registration, assign `vClickOutside` to `clickOutside.directive` as shown above.
+Don't import the package as `vClickOutside` inside `<script setup>`. Vue treats any `vSomething` variable as a local directive, so it would shadow the global one with the plugin object, which isn't a directive. Use `clickOutside.directive` like above.
 
 ### Options
 
-Set the directive value to `null`, `undefined`, or `false` to disable it, for example with `v-click-outside="isOpen && close"`. An options object without `handler` also disables it, which supports optional function props such as `v-click-outside="{ handler: onClose }"`.
+`null`, `undefined` and `false` turn the directive off, so `v-click-outside="isOpen && close"` works. Same for an options object without a `handler`, handy when the handler is an optional prop: `v-click-outside="{ handler: onClose }"`.
 
 | Option | Description |
 | --- | --- |
-| `handler` | A function with the signature `(event) => void`. If omitted, the directive does nothing. |
-| `middleware` | Optional synchronous function with the signature `(event) => boolean`. It is called only for outside events. Returning `true` allows the handler to run; when omitted, all outside events pass. |
+| `handler` | `(event) => void`. Without it the directive does nothing. |
+| `middleware` | `(event) => boolean`, synchronous. Runs only for outside events; return `false` to skip the handler. |
 | `events` | Events to listen for. Defaults to `['touchstart']` on touch devices (`'ontouchstart' in window`), and `['click']` otherwise. |
-| `isActive` | Whether the directive is active. Defaults to `true`. In-place mutations of a reactive config object are tracked on Vue 3.1.5+ through the directive's `deep` option. On earlier Vue 3, replace the config object with a new object or a computed value. |
+| `isActive` | Defaults to `true`. Can be toggled at runtime. Mutating a reactive config object in place works on Vue 3.1.5+; on older 3.x replace the object (or use a computed). |
 | `detectIframe` | Detects clicks on iframes. Defaults to `true`; see [Detecting Iframe Clicks](#detecting-iframe-clicks). |
-| `capture` | Registers the listener in the capture phase. Defaults to `false`; useful when another handler calls `stopPropagation`. |
+| `capture` | Listen in the capture phase. Defaults to `false`. Useful when something else calls `stopPropagation`. |
 
 ### Behavior
 
-- When `events` includes `click` (the default on devices without touch events), a click that starts inside the element (a mouse button press or touch inside) and ends outside is not treated as an outside click. Dragging to select text in a modal and releasing beyond its edge does not close it. Keyboard clicks, such as pressing Enter or Space on an outside button, are handled as usual.
-- The current `handler` and `middleware` functions are used when they change at runtime. Updating either function does not reattach listeners.
-- Changing `events`, `isActive`, `detectIframe`, or `capture` at runtime recreates the listeners.
+- A click that starts inside the element and ends outside doesn't count as an outside click. So selecting text in a modal and letting go past its edge won't close it. Keyboard clicks (Enter/Space on a button outside) work as usual.
+- You can swap `handler` or `middleware` at any time, the latest one is used.
+- Changing `events`, `isActive`, `detectIframe` or `capture` re-creates the listeners.
 
 ### Recipes
 
@@ -234,18 +234,15 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 
 ## Upgrading from 4.0
 
-- When `events` includes `click`, a click that starts inside an element and ends outside no longer calls the handler.
-- An options object without `handler` now disables the directive (in 4.0, it threw a `TypeError` on the first outside click); a present non-function `handler` throws on mount or update while the directive is active, but not with `isActive: false`. `null`, `undefined`, and `false` now disable the directive (they threw errors in 4.0); `true`, strings, and numbers still throw.
-- The package now includes TypeScript declarations and `vue` in `peerDependencies`.
+- A click that starts inside and ends outside no longer calls the handler.
+- `null`, `undefined`, `false` and an options object without `handler` now just disable the directive. In 4.0 they threw (or failed on the first outside click). A `handler` that isn't a function still throws while the directive is active, and so do `true`, strings and numbers.
+- TypeScript types are included, and `vue` is now a peer dependency.
 
 ## Development
 
-Run `npm test` and `npm run lint` from the repository root. Start the live Vite example with `npm run example:dev`; it uses the source files in `src/`.
+`npm test` and `npm run lint` from the repo root. `npm run example:dev` starts the Vite example, which uses the code from `src/`.
 
-Run `npm run test:compat` for the matrix: Vue versions, SSR with hydration, bundlers, TypeScript and vue-tsc template checks,
-real browsers (Chromium, Firefox, WebKit), Node, ES5 syntax, and comparison with 4.0.1.
-The browser suite needs Docker (`mcr.microsoft.com/playwright:v1.62.1-noble`) or locally installed Playwright browsers.
-Use `--only <suites>` to select suites and `--max-minutes <n>` to stop starting new suites after `n` minutes. Network access is required; the first run takes longer while packages download.
+`npm run test:compat` runs the bigger compatibility check: several Vue versions, SSR with hydration, bundlers, TypeScript/vue-tsc, Chromium/Firefox/WebKit, Node and a comparison with 4.0.1. It needs network access, and the browser part needs Docker (or Playwright browsers installed locally). Pick suites with `--only <suites>`; `--max-minutes <n>` stops it from starting new suites after `n` minutes.
 
 ## License
 
