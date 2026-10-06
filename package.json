@@ -76,5 +76,11 @@
   },
   "engines": {
     "node": ">=6"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=20.19.0"
+    }
   }
 }

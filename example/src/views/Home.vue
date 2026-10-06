@@ -58,7 +58,12 @@ onBeforeUnmount(() => {
 
       <div id="blue-box" v-click-outside="onBlueClick" class="blue-box">
         <p>Click outside Blue box</p>
-        <iframe tabindex="1" class="iframe-button-example" src="#/about" />
+        <iframe
+          tabindex="1"
+          class="iframe-button-example"
+          title="About page (inside the blue box)"
+          src="#/about"
+        />
       </div>
 
       <div id="toggle-box" v-click-outside="toggleConfig" class="toggle-box">
@@ -84,7 +89,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <iframe class="iframe" src="#/about" width="100%" />
+      <iframe class="iframe" title="About page" src="#/about" width="100%" />
 
       <h2>Event log</h2>
       <ol id="event-log">

@@ -240,7 +240,7 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 
 ## Development
 
-`npm test` and `npm run lint` from the repo root. `npm run example:dev` starts the Vite example, which uses the code from `src/`.
+Development needs Node 20.19+ (the example and some checks use Vite 8). `npm test` and `npm run lint` from the repo root. `npm run example:dev` starts the Vite example, which uses the code from `src/`.
 
 `npm run test:compat` runs the bigger compatibility check: several Vue versions, SSR with hydration, bundlers, TypeScript/vue-tsc, Chromium/Firefox/WebKit, Node and a comparison with 4.0.1. It needs network access, and the browser part needs Docker (or Playwright browsers installed locally). Pick suites with `--only <suites>`; `--max-minutes <n>` stops it from starting new suites after `n` minutes.
 
