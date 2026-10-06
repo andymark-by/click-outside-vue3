@@ -1,29 +1,11 @@
-# v-click-outside-example
+# click-outside-vue3 example
 
-## Project setup
+From the repository root, run:
 
-```
+```bash
 npm install
+npm run example:dev
+npm run example:build
 ```
 
-### Compiles and hot-reloads for development
-
-```
-npm run serve
-```
-
-### Compiles and minifies for production
-
-```
-npm run build
-```
-
-### Lints and fixes files
-
-```
-npm run lint
-```
-
-### Customize configuration
-
-See [Configuration Reference](https://cli.vuejs.org/config/).
+The example imports the directive from `src/` through a Vite alias.

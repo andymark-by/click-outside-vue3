@@ -11,5 +11,40 @@
   },
   "env": {
     "browser": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["example/**/*.js", "example/**/*.mjs", "example/**/*.vue"],
+      "extends": ["airbnb-base", "plugin:vue/vue3-recommended", "prettier", "prettier/vue"],
+      "parserOptions": {
+        "ecmaVersion": 2020,
+        "sourceType": "module"
+      },
+      "env": {
+        "browser": true,
+        "node": true
+      },
+      "rules": {
+        "import/no-extraneous-dependencies": ["error", { "devDependencies": true }],
+        "import/no-unresolved": ["error", { "ignore": ["^click-outside-vue3$", "^vite$", "^@vitejs/plugin-vue$"] }],
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["scripts/**/*.mjs"],
+      "parserOptions": {
+        "ecmaVersion": 2021,
+        "sourceType": "module"
+      },
+      "env": {
+        "node": true
+      },
+      "rules": {
+        "no-console": "off",
+        "no-restricted-syntax": "off",
+        "no-await-in-loop": "off",
+        "import/extensions": ["error", "always", { "ignorePackages": true }]
+      }
+    }
+  ]
 }

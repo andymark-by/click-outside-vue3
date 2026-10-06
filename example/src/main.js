@@ -1,15 +1,6 @@
-import Vue from 'vue'
+import { createApp } from 'vue'
+import vClickOutside from 'click-outside-vue3'
 import App from './App.vue'
 import router from './router'
 
-// import vClickOutside from 'v-click-outside'
-import vClickOutside from '../../src'
-
-Vue.config.productionTip = false
-
-Vue.use(vClickOutside)
-
-new Vue({
-  router,
-  render: (h) => h(App),
-}).$mount('#app')
+createApp(App).use(router).use(vClickOutside).mount('#app')
