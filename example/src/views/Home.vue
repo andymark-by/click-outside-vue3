@@ -8,7 +8,6 @@ const limeEl = ref(null)
 const logEvent = (name, event) => {
   const entry = `${name}: ${event.type}`
   eventLog.value = [entry, ...eventLog.value].slice(0, 10)
-  console.log(entry)
 }
 
 const onYellowClick = (event) => logEvent('yellow', event)
@@ -59,7 +58,6 @@ onBeforeUnmount(() => {
       <div id="blue-box" v-click-outside="onBlueClick" class="blue-box">
         <p>Click outside Blue box</p>
         <iframe
-          tabindex="1"
           class="iframe-button-example"
           title="About page (inside the blue box)"
           src="#/about"
@@ -85,6 +83,7 @@ onBeforeUnmount(() => {
         </p>
         <input
           id="drag-input"
+          aria-label="Text to drag-select"
           value="Select this long text, drag beyond the edge of this box, and release the mouse button outside."
         />
       </div>

@@ -15,7 +15,53 @@ export function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`
 }
 
-export function createContext({ repoRoot, tmpRoot, tarball }) {
+// timeout puts the command in its own process group, so Ctrl+C from the
+// terminal never reaches it. This wrapper stays in our group and kills it.
+// Node only runs its SIGINT handler once spawnSync returns, hence the marker.
+const INTERRUPTED = 'compat: interrupted'
+const RUN_WITH_TIMEOUT = [
+  'child=',
+  `trap '[ -n "$child" ] && { kill -KILL -- "-$child" || kill -KILL "$child"; } 2>/dev/null; echo "${INTERRUPTED}" >&2; exit 130' INT TERM`,
+  '"$1" -k 10 "$2" bash -lc "$3" &',
+  'child=$!',
+  'wait "$child"',
+].join('\n')
+
+export const cleanupState = {
+  tmpRoot: null,
+  keep: false,
+  containers: new Set(),
+}
+
+export function cleanupSync() {
+  cleanupState.containers.forEach((container) => {
+    spawnSync('docker', ['rm', '-f', container], {
+      stdio: 'ignore',
+      timeout: 15000,
+      killSignal: 'SIGKILL',
+    })
+  })
+  cleanupState.containers.clear()
+  if (cleanupState.tmpRoot && cleanupState.keep) {
+    console.error(`Temporary files kept at ${cleanupState.tmpRoot}`)
+  } else if (cleanupState.tmpRoot) {
+    try {
+      fs.rmSync(cleanupState.tmpRoot, { recursive: true, force: true })
+    } catch (error) {
+      console.error(
+        `Warning: could not remove ${cleanupState.tmpRoot}: ${error.message}`,
+      )
+    }
+  }
+}
+
+export function isTimedOut(result) {
+  return (
+    result.timedOut === true || /timed out/i.test(String(result.detail || ''))
+  )
+}
+
+export function createContext({ repoRoot, tmpRoot, tarball, deadline = null }) {
   const timeoutCheck = spawnSync(
     'bash',
     ['-lc', 'command -v timeout || command -v gtimeout'],
@@ -29,42 +75,64 @@ export function createContext({ repoRoot, tmpRoot, tarball }) {
     timeoutCheck.status === 0
       ? timeoutCheck.stdout.trim().split('\n').pop()
       : null
-  const hasTimeout = Boolean(timeoutCommand)
+  if (!timeoutCommand) {
+    throw new Error(
+      'timeout command not found: install coreutils (gtimeout) or run on Linux',
+    )
+  }
+
+  const stats = { timeouts: 0 }
 
   const sh = (cmd, { cwd = repoRoot, env = {}, timeoutSec = 600 } = {}) => {
     const requestedSeconds = Number(timeoutSec)
-    const seconds =
+    const ownSeconds =
       Number.isFinite(requestedSeconds) && requestedSeconds > 0
         ? requestedSeconds
         : 600
+    const remainingSeconds =
+      deadline === null
+        ? Infinity
+        : Math.max(10, (deadline - Date.now()) / 1000)
+    const budgetLimited = remainingSeconds < ownSeconds
+    const seconds = Math.ceil(Math.min(ownSeconds, remainingSeconds))
     const started = Date.now()
     const result = spawnSync(
-      hasTimeout ? timeoutCommand : 'bash',
-      hasTimeout
-        ? ['-k', '10', String(seconds), 'bash', '-lc', cmd]
-        : ['-lc', cmd],
+      'bash',
+      ['-c', RUN_WITH_TIMEOUT, 'compat', timeoutCommand, String(seconds), cmd],
       {
         cwd,
         env: { ...process.env, ...env },
         encoding: 'utf8',
         maxBuffer: 64 * 1024 * 1024,
-        timeout: hasTimeout ? undefined : seconds * 1000,
         killSignal: 'SIGKILL',
       },
     )
+    if (result.status === 130 && (result.stderr || '').includes(INTERRUPTED)) {
+      console.error('Interrupted, cleaning up')
+      cleanupSync()
+      process.exit(130)
+    }
     const elapsed = Date.now() - started
-    const timedOut = hasTimeout
-      ? result.status === 124 ||
-        ((result.status === 137 || result.signal === 'SIGKILL') &&
-          elapsed >= seconds * 1000)
-      : result.error?.code === 'ETIMEDOUT'
+    const timedOut =
+      result.status === 124 ||
+      ((result.status === 137 || result.signal === 'SIGKILL') &&
+        elapsed >= seconds * 1000)
     const stderr = result.stderr || String(result.error || '')
+    if (timedOut) {
+      stats.timeouts += 1
+    }
 
     return {
       code: timedOut ? 124 : result.status ?? 1,
+      timedOut,
       stdout: result.stdout || '',
       stderr: timedOut
-        ? [stderr.trimEnd(), `timed out after ${seconds}s`]
+        ? [
+            stderr.trimEnd(),
+            budgetLimited
+              ? `timed out after ${seconds}s: time budget exceeded`
+              : `timed out after ${seconds}s`,
+          ]
             .filter(Boolean)
             .join('\n')
         : stderr,
@@ -99,6 +167,7 @@ export function createContext({ repoRoot, tmpRoot, tarball }) {
     tmpRoot,
     tarball,
     sh,
+    stats,
     npmInstall,
     log: (message) => console.error(message),
   }

@@ -3,7 +3,14 @@ import os from 'os'
 import path from 'path'
 import { createHash } from 'crypto'
 import { fileURLToPath } from 'url'
-import { createContext, shellQuote, tail } from './lib.mjs'
+import {
+  cleanupState,
+  cleanupSync,
+  createContext,
+  isTimedOut,
+  shellQuote,
+  tail,
+} from './lib.mjs'
 
 const suites = [
   'es5',
@@ -22,7 +29,7 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
-    if (arg === '--only' && argv[index + 1]) {
+    if (arg === '--only' && argv[index + 1] !== undefined) {
       options.only = argv[index + 1].split(',').filter(Boolean)
       index += 1
     } else if (arg === '--keep') {
@@ -45,6 +52,9 @@ function parseArgs(argv) {
     const unknown = options.only.filter((name) => !suites.includes(name))
     if (unknown.length > 0) {
       throw new Error(`Unknown suites: ${unknown.join(', ')}`)
+    }
+    if (options.only.length === 0) {
+      throw new Error('--only selected no suites')
     }
   }
 
@@ -73,7 +83,10 @@ function printTable(results) {
     counts[result.status] += 1
   })
   console.log(`pass ${counts.pass}, warn ${counts.warn}, fail ${counts.fail}`)
-  return counts.fail
+  if (counts.warn > 0) {
+    console.log(`${counts.warn} warnings`)
+  }
+  return counts
 }
 
 function snapshotSrc(repoRoot) {
@@ -170,9 +183,26 @@ async function main() {
   const selected = suites.filter(
     (name) => !options.only || options.only.includes(name),
   )
+  const deadline = startedAt + options.maxMinutes * 60 * 1000
+  cleanupState.tmpRoot = tmpRoot
+  cleanupState.keep = options.keep
+  ;[
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ].forEach(([signal, code]) => {
+    process.on(signal, () => {
+      cleanupSync()
+      process.exit(code)
+    })
+  })
 
   try {
-    const preparation = createContext({ repoRoot, tmpRoot, tarball: '' })
+    const preparation = createContext({
+      repoRoot,
+      tmpRoot,
+      tarball: '',
+      deadline,
+    })
     const results = []
     const sourceBefore = snapshotSrc(repoRoot)
     preparation.log('Building package')
@@ -185,6 +215,20 @@ async function main() {
       printTable(results)
       process.exitCode = 1
       return
+    }
+
+    const distDiff = preparation.sh('git diff --quiet -- dist', {
+      cwd: repoRoot,
+      timeoutSec: 30,
+    })
+    if (distDiff.code === 1) {
+      results.push({
+        suite: 'build',
+        case: 'dist committed',
+        status: 'warn',
+        detail:
+          'dist/ differs from the committed build; commit the rebuilt dist',
+      })
     }
 
     preparation.log('Packing package')
@@ -209,7 +253,7 @@ async function main() {
     }
 
     results.push(tarballResult(preparation, tarball, repoRoot))
-    const ctx = createContext({ repoRoot, tmpRoot, tarball })
+    const ctx = createContext({ repoRoot, tmpRoot, tarball, deadline })
     for (const name of selected) {
       if (Date.now() - startedAt >= options.maxMinutes * 60 * 1000) {
         results.push({
@@ -221,6 +265,7 @@ async function main() {
         ctx.log(`${name}: skipped after global time limit`)
       } else {
         const started = Date.now()
+        const timeoutsBefore = ctx.stats.timeouts
         ctx.log(`Running ${name}`)
         const modulePath = path.join(
           repoRoot,
@@ -243,13 +288,21 @@ async function main() {
             if (!Array.isArray(suiteResults)) {
               throw new Error('suite did not return results')
             }
-            results.push(
-              ...suiteResults.map((result) =>
-                /timed out/i.test(String(result.detail || ''))
-                  ? { ...result, status: 'fail' }
-                  : result,
-              ),
+            const checked = suiteResults.map((result) =>
+              isTimedOut(result) ? { ...result, status: 'fail' } : result,
             )
+            if (
+              ctx.stats.timeouts > timeoutsBefore &&
+              !checked.some((result) => result.status === 'fail')
+            ) {
+              checked.push({
+                suite: name,
+                case: 'timeout',
+                status: 'fail',
+                detail: 'a command timed out but the suite reported no failure',
+              })
+            }
+            results.push(...checked)
           } catch (error) {
             results.push({
               suite: name,
@@ -264,19 +317,11 @@ async function main() {
       }
     }
 
-    if (printTable(results) > 0) {
+    if (printTable(results).fail > 0) {
       process.exitCode = 1
     }
   } finally {
-    if (options.keep) {
-      console.error(`Temporary files kept at ${tmpRoot}`)
-    } else {
-      try {
-        fs.rmSync(tmpRoot, { recursive: true, force: true })
-      } catch (error) {
-        console.error(`Warning: could not remove ${tmpRoot}: ${error.message}`)
-      }
-    }
+    cleanupSync()
   }
 }
 

@@ -5,3 +5,4 @@ test
 yarn.lock
 example
 tsconfig.build.json
+.github

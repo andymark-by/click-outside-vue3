@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { shellQuote, tail } from '../lib.mjs'
+import { cleanupState, shellQuote, tail } from '../lib.mjs'
 
 export const name = 'browsers'
 
@@ -601,7 +601,8 @@ export async function run(ctx) {
       ctx.tarball,
     ])
     fs.writeFileSync(path.join(dir, 'run.cjs'), runnerSource)
-    const hasDocker = ctx.sh('docker version', { cwd: dir }).code === 0
+    const hasDocker =
+      ctx.sh('docker version', { cwd: dir, timeoutSec: 20 }).code === 0
     const containerName = `click-outside-compat-${process.pid}-${Date.now()}`
     const image = `mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble`
     const command = hasDocker
@@ -613,6 +614,9 @@ export async function run(ctx) {
       : 'node run.cjs'
     ctx.log(`browsers: ${hasDocker ? 'Docker' : 'host'} execution`)
     let result
+    if (hasDocker) {
+      cleanupState.containers.add(containerName)
+    }
     try {
       result = ctx.sh(command, {
         cwd: dir,
@@ -620,13 +624,17 @@ export async function run(ctx) {
       })
     } finally {
       if (hasDocker) {
-        try {
-          ctx.sh(`docker rm -f ${shellQuote(containerName)}`, {
-            cwd: dir,
-            timeoutSec: 10,
-          })
-        } catch (error) {
-          ctx.log(`browsers: container cleanup failed: ${error.message}`)
+        const removed = ctx.sh(`docker rm -f ${shellQuote(containerName)}`, {
+          cwd: dir,
+          timeoutSec: 10,
+        })
+        const removeOutput = `${removed.stdout}\n${removed.stderr}`
+        if (removed.code !== 0 && !/no such container/i.test(removeOutput)) {
+          ctx.log(
+            `browsers: container cleanup failed: ${tail(removeOutput, 1)}`,
+          )
+        } else {
+          cleanupState.containers.delete(containerName)
         }
       }
     }
