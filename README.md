@@ -136,13 +136,13 @@ Don't import the package as `vClickOutside` inside `<script setup>`. Vue treats 
 
 ### Options
 
-`null`, `undefined` and `false` turn the directive off, so `v-click-outside="isOpen && close"` works. Same for an options object without a `handler`, handy when the handler is an optional prop: `v-click-outside="{ handler: onClose }"`.
+`null`, `undefined` and `false` turn the directive off, so `v-click-outside="isOpen && close"` works when `isOpen` is a boolean (`0` or `''` still throw). Same for an options object without a `handler`, handy when the handler is an optional prop: `v-click-outside="{ handler: onClose }"`.
 
 | Option | Description |
 | --- | --- |
 | `handler` | `(event) => void`. Without it the directive does nothing. |
-| `middleware` | `(event) => boolean`, synchronous. Runs only for outside events; return `false` to skip the handler. |
-| `events` | Events to listen for. Defaults to `['touchstart']` on touch devices (`'ontouchstart' in window`), and `['click']` otherwise. |
+| `middleware` | `(event) => boolean`, synchronous. Runs only for outside events; return a falsy value to skip the handler. |
+| `events` | Array of events to listen for. Defaults to `['touchstart']` on touch devices (`'ontouchstart' in window`), and `['click']` otherwise. |
 | `isActive` | Defaults to `true`. Can be toggled at runtime. Mutating a reactive config object in place works on Vue 3.1.5+; on older 3.x replace the object (or use a computed). |
 | `detectIframe` | Detects clicks on iframes. Defaults to `true`; see [Detecting Iframe Clicks](#detecting-iframe-clicks). |
 | `capture` | Listen in the capture phase. Defaults to `false`. Useful when something else calls `stopPropagation`. |
@@ -152,6 +152,7 @@ Don't import the package as `vClickOutside` inside `<script setup>`. Vue treats 
 - A click that starts inside the element and ends outside doesn't count as an outside click. So selecting text in a modal and letting go past its edge won't close it. Keyboard clicks (Enter/Space on a button outside) work as usual.
 - You can swap `handler` or `middleware` at any time, the latest one is used.
 - Changing `events`, `isActive`, `detectIframe` or `capture` re-creates the listeners.
+- A component can use `v-click-outside` on its own root element and still get another one from its parent. Both work independently.
 
 ### Recipes
 
@@ -199,7 +200,9 @@ Browsers treat document-level `touchstart` listeners as passive, so `event.preve
 
 The package includes TypeScript declarations and exports `ClickOutsideOptions`, `ClickOutsideBinding`, `ClickOutsideHandler`, `ClickOutsideMiddleware`, and `ClickOutsideDirective`. Handlers can accept a narrower event type, such as `MouseEvent`.
 
-The types work with `moduleResolution` set to `node`, `bundler`, or `nodenext` (including ESM projects), with or without `esModuleInterop`; use a default import for the package.
+The types work with `moduleResolution` set to `node`, `bundler`, or `nodenext` (including ESM projects). Use a default import. The package is published as UMD, so named imports like `import { directive }` work with bundlers but fail in plain Node ESM, for example in SSR with external dependencies. If TypeScript compiles your code to CommonJS, turn on `esModuleInterop`.
+
+The example below assumes the directive is registered globally with `app.use`.
 
 ```vue
 <script setup lang="ts">
@@ -219,7 +222,7 @@ const vcoConfig: ClickOutsideOptions = {
 </template>
 ```
 
-On Vue 3.5+, when registered globally with `app.use`, `v-click-outside` is typed in templates through the package's augmentation of Vue's `GlobalDirectives` interface. Earlier Vue 3 versions do not provide `GlobalDirectives`; the option types work with any Vue 3 version.
+On Vue 3.5+, when registered globally with `app.use`, `v-click-outside` is typed in templates through the package's augmentation of Vue's `GlobalDirectives` interface. Earlier Vue 3 versions do not provide `GlobalDirectives`; the option types work with any Vue 3 version. If you added your own `vClickOutside` entry to `GlobalDirectives` for 4.0, remove it, otherwise TypeScript may report a conflicting declaration.
 
 ## Detecting Iframe Clicks
 
@@ -235,14 +238,16 @@ Iframe detection is enabled by default. Set `detectIframe` to `false` if it conf
 ## Upgrading from 4.0
 
 - A click that starts inside and ends outside no longer calls the handler.
-- `null`, `undefined`, `false` and an options object without `handler` now just disable the directive. In 4.0 they threw (or failed on the first outside click). A `handler` that isn't a function still throws while the directive is active, and so do `true`, strings and numbers.
-- TypeScript types are included, and `vue` is now a peer dependency.
+- A new `handler` or `middleware` passed after mount is now used. In 4.0 the first one stayed until another option changed. Changes made to the options object in place are picked up too (Vue 3.1.5+).
+- `null`, `undefined`, `false` and an options object without `handler` now just disable the directive. In 4.0 they threw (or failed on the first outside click). A `handler` that isn't a function now throws when the directive is bound instead of on the first click. `true`, strings and numbers still throw, and so does an `events` value that is truthy but not an array.
+- The non-standard `event.path` is no longer read, only `event.composedPath()`.
+- TypeScript types are included, and `vue` is now a peer dependency. Remove any `GlobalDirectives` declaration you wrote for `vClickOutside` yourself.
 
 ## Development
 
-Development needs Node 20.19+ (the example and some checks use Vite 8). `npm test` and `npm run lint` from the repo root. `npm run example:dev` starts the Vite example, which uses the code from `src/`.
+Development needs Node 20.19+ (the example and `test:compat` use Vite 8). Run `npm test`, `npm run test:types` and `npm run lint` from the repo root. `npm run example:dev` starts the Vite example, which uses the code from `src/`.
 
-`npm run test:compat` runs the bigger compatibility check: several Vue versions, SSR with hydration, bundlers, TypeScript/vue-tsc, Chromium/Firefox/WebKit, Node and a comparison with 4.0.1. It needs network access, and the browser part needs Docker (or Playwright browsers installed locally). Pick suites with `--only <suites>`; `--max-minutes <n>` stops it from starting new suites after `n` minutes.
+`npm run test:compat` runs the bigger compatibility check: several Vue versions, SSR with hydration, bundlers, TypeScript/vue-tsc, Chromium/Firefox/WebKit, Node and a comparison with 4.0.1. It needs network access and GNU `timeout` (`brew install coreutils` on macOS), and the browser part needs Docker (or Playwright browsers installed locally). Options go after `--`, e.g. `npm run test:compat -- --only browsers`. `--list` shows the suites, and `--max-minutes <n>` sets a rough time limit for the whole run.
 
 ## License
 

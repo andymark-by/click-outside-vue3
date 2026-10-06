@@ -4,6 +4,7 @@ import plugin, * as indexModule from '../src/index'
 import directive from '../src/v-click-outside'
 
 const elements = []
+const bindings = []
 
 function element(parent = document.body) {
   const el = document.createElement('div')
@@ -14,6 +15,13 @@ function element(parent = document.body) {
 
 function mount(value, el = element()) {
   directive.beforeMount(el, { value })
+  jest.runAllTimers()
+  return el
+}
+
+function mountFor(instance, value, el = element()) {
+  directive.beforeMount(el, { value, instance })
+  bindings.push({ el, instance })
   jest.runAllTimers()
   return el
 }
@@ -80,6 +88,10 @@ describe('directive', () => {
 
   afterEach(() => {
     jest.clearAllTimers()
+    bindings.forEach(({ el, instance }) => {
+      directive.unmounted(el, { instance })
+    })
+    bindings.length = 0
     elements.forEach((el) => {
       directive.unmounted(el)
       el.remove()
@@ -348,6 +360,52 @@ describe('directive', () => {
     )
   })
 
+  it('rejects non-array events on beforeMount', () => {
+    expect(() =>
+      directive.beforeMount(element(), {
+        value: { handler: jest.fn(), events: 'click' },
+      }),
+    ).toThrow('v-click-outside: Binding value events must be an array')
+  })
+
+  it('rejects non-array events on updated', () => {
+    const el = mount(jest.fn())
+    expect(() =>
+      directive.updated(el, {
+        value: { handler: jest.fn(), events: 'click' },
+      }),
+    ).toThrow('v-click-outside: Binding value events must be an array')
+  })
+
+  it('accepts non-array events while inactive', () => {
+    const el = element()
+    expect(() =>
+      directive.beforeMount(el, {
+        value: { handler: jest.fn(), events: 'click', isActive: false },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      directive.beforeMount(element(), { value: { events: 'click' } }),
+    ).not.toThrow()
+    jest.runAllTimers()
+    expect(documentAdd).not.toHaveBeenCalled()
+    expect(windowAdd).not.toHaveBeenCalled()
+  })
+
+  it.each([null, undefined, false, 0, ''])(
+    'uses default events for events %p',
+    (events) => {
+      const handler = jest.fn()
+      mount({ handler, events })
+      expect(documentAdd.mock.calls.map(([type]) => type)).toEqual([
+        'click',
+        'pointerdown',
+      ])
+      const event = click(document.body)
+      expect(handler).toHaveBeenCalledWith(event)
+    },
+  )
+
   it('disables and re-enables an object handler through updated', () => {
     const handler = jest.fn()
     const el = mount({ handler })
@@ -505,6 +563,38 @@ describe('directive', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
+  it('calls the handler when middleware returns a truthy non-boolean', () => {
+    const handler = jest.fn()
+    const middleware = jest.fn((event) => event.target)
+    mount({ handler, middleware })
+    const event = click(document.body)
+    expect(middleware).toHaveBeenCalledWith(event)
+    expect(handler).toHaveBeenCalledWith(event)
+  })
+
+  it.each([0, '', undefined, null])(
+    'respects middleware returning %p',
+    (result) => {
+      const handler = jest.fn()
+      const middleware = jest.fn(() => result)
+      mount({ handler, middleware })
+      click(document.body)
+      expect(middleware).toHaveBeenCalledTimes(1)
+      expect(handler).not.toHaveBeenCalled()
+    },
+  )
+
+  it('ignores an inside target removed during dispatch', () => {
+    const handler = jest.fn()
+    const el = mount(handler)
+    const child = document.createElement('span')
+    el.appendChild(child)
+    child.addEventListener('click', () => child.remove())
+    click(child, 1)
+    expect(el.contains(child)).toBe(false)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
   it('never reads event.path', () => {
     const handler = jest.fn()
     const el = mount(handler)
@@ -575,6 +665,15 @@ describe('directive', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 
+  it('resets the drag flag on an inside click', () => {
+    const handler = jest.fn()
+    const el = mount(handler)
+    pointerdown(el)
+    click(el, 1)
+    click(document.body, 1)
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
   it('uses new handler and middleware without listener changes', () => {
     const oldHandler = jest.fn()
     const newHandler = jest.fn()
@@ -624,6 +723,19 @@ describe('directive', () => {
       false,
     )
     expect(documentAdd).toHaveBeenCalledTimes(3)
+  })
+
+  it('listens to an event pushed into the same events array', () => {
+    const handler = jest.fn()
+    const config = { handler, events: ['click'] }
+    const el = mount(config)
+    config.events.push('keyup')
+    directive.updated(el, { value: config, oldValue: config })
+    jest.runAllTimers()
+    document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }))
+    expect(handler).toHaveBeenCalledTimes(1)
+    click(document.body)
+    expect(handler).toHaveBeenCalledTimes(2)
   })
 
   it('detects in-place capture mutation despite equal oldValue', () => {
@@ -734,5 +846,139 @@ describe('directive', () => {
     jest.runAllTimers()
     expect(handler).not.toHaveBeenCalled()
     iframe.remove()
+  })
+
+  it('ignores blur when the body is active', () => {
+    const handler = jest.fn()
+    mount(handler)
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      value: document.body,
+    })
+    window.dispatchEvent(new Event('blur'))
+    jest.runAllTimers()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('ignores blur without an active element', () => {
+    const handler = jest.fn()
+    mount(handler)
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      value: null,
+    })
+    window.dispatchEvent(new Event('blur'))
+    jest.runAllTimers()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('ignores an outside iframe blur when detectIframe is false', () => {
+    const handler = jest.fn()
+    mount({ handler, detectIframe: false })
+    const iframe = document.createElement('iframe')
+    document.body.appendChild(iframe)
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      value: iframe,
+    })
+    window.dispatchEvent(new Event('blur'))
+    jest.runAllTimers()
+    expect(handler).not.toHaveBeenCalled()
+    iframe.remove()
+  })
+
+  it('keeps other elements working after one is unmounted', () => {
+    const firstHandler = jest.fn()
+    const secondHandler = jest.fn()
+    const first = mount(firstHandler)
+    mount(secondHandler)
+    directive.unmounted(first)
+    click(document.body)
+    expect(firstHandler).not.toHaveBeenCalled()
+    expect(secondHandler).toHaveBeenCalledTimes(1)
+  })
+
+  it('replaces a binding without an instance on repeated beforeMount', () => {
+    const firstHandler = jest.fn()
+    const secondHandler = jest.fn()
+    const el = mount(firstHandler)
+    mount(secondHandler, el)
+    click(document.body)
+    expect(firstHandler).not.toHaveBeenCalled()
+    expect(secondHandler).toHaveBeenCalledTimes(1)
+    directive.unmounted(el)
+    expectRemoved(documentAdd, documentRemove)
+    expectRemoved(windowAdd, windowRemove)
+    expect(el).not.toHaveProperty('__v-click-outside')
+  })
+
+  it('keeps bindings of different instances on one element independent', () => {
+    const first = {}
+    const second = {}
+    const firstHandler = jest.fn()
+    const secondHandler = jest.fn()
+    const el = mountFor(first, firstHandler)
+    mountFor(second, secondHandler, el)
+    click(document.body)
+    expect(firstHandler).toHaveBeenCalledTimes(1)
+    expect(secondHandler).toHaveBeenCalledTimes(1)
+    click(el)
+    expect(firstHandler).toHaveBeenCalledTimes(1)
+    expect(secondHandler).toHaveBeenCalledTimes(1)
+    directive.unmounted(el, { instance: first })
+    expect(Object.prototype.hasOwnProperty.call(el, '__v-click-outside')).toBe(
+      true,
+    )
+    click(document.body)
+    expect(firstHandler).toHaveBeenCalledTimes(1)
+    expect(secondHandler).toHaveBeenCalledTimes(2)
+    directive.unmounted(el, { instance: second })
+    expect(Object.prototype.hasOwnProperty.call(el, '__v-click-outside')).toBe(
+      false,
+    )
+    click(document.body)
+    expect(secondHandler).toHaveBeenCalledTimes(2)
+    expectRemoved(documentAdd, documentRemove)
+    expectRemoved(windowAdd, windowRemove)
+  })
+
+  it('keeps another instance on the element through structural updates', () => {
+    const first = {}
+    const second = {}
+    const firstHandler = jest.fn()
+    const secondHandler = jest.fn()
+    const el = mountFor(first, firstHandler)
+    mountFor(second, secondHandler, el)
+    directive.updated(el, {
+      value: { handler: firstHandler, isActive: false },
+      instance: first,
+    })
+    jest.runAllTimers()
+    click(document.body)
+    expect(firstHandler).not.toHaveBeenCalled()
+    expect(secondHandler).toHaveBeenCalledTimes(1)
+    directive.updated(el, {
+      value: { handler: firstHandler, events: ['keyup'] },
+      instance: first,
+    })
+    jest.runAllTimers()
+    click(document.body)
+    expect(firstHandler).not.toHaveBeenCalled()
+    expect(secondHandler).toHaveBeenCalledTimes(2)
+    document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }))
+    expect(firstHandler).toHaveBeenCalledTimes(1)
+    expect(secondHandler).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an instance binding after unmounting the binding without one', () => {
+    const instance = {}
+    const sharedHandler = jest.fn()
+    const instanceHandler = jest.fn()
+    const el = mount(sharedHandler)
+    mountFor(instance, instanceHandler, el)
+    directive.unmounted(el)
+    click(document.body)
+    expect(sharedHandler).not.toHaveBeenCalled()
+    expect(instanceHandler).toHaveBeenCalledTimes(1)
   })
 })

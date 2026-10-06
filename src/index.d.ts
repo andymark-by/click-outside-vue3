@@ -4,7 +4,7 @@ export type ClickOutsideHandler = {
   bivarianceHack(event: Event): void
 }['bivarianceHack']
 export type ClickOutsideMiddleware = {
-  bivarianceHack(event: Event): boolean
+  bivarianceHack(event: Event): unknown
 }['bivarianceHack']
 export interface ClickOutsideOptions {
   handler?: ClickOutsideHandler | Function

@@ -1,4 +1,9 @@
-import { createApp, type App, type Directive } from 'vue'
+import {
+  createApp,
+  type App,
+  type Directive,
+  type GlobalDirectives,
+} from 'vue'
 import plugin from '../../src/index'
 import { install, directive } from '../../src/index'
 import type {
@@ -20,6 +25,18 @@ const handler: ClickOutsideHandler = (event: Event) => {
 }
 const middleware: ClickOutsideMiddleware = (event: Event) =>
   event.type === 'click'
+const targetMiddleware: ClickOutsideMiddleware = (event: Event) =>
+  event.target
+const globalDirective: GlobalDirectives['vClickOutside'] = plugin.directive
+const fromGlobalDirective: ClickOutsideDirective = globalDirective
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false
+const globalDirectiveIsExact: Equal<
+  GlobalDirectives['vClickOutside'],
+  ClickOutsideDirective
+> = true
 const events = ['click', 'keyup'] as const
 const options: ClickOutsideOptions = {
   handler: (event: MouseEvent) => {
@@ -41,6 +58,10 @@ const fn: Function = () => {}
 const broadFunctionBinding: ClickOutsideBinding = fn
 const broadOptionHandler: ClickOutsideOptions['handler'] = fn
 const optionsBinding: ClickOutsideBinding = options
+const targetMiddlewareOptions: ClickOutsideOptions = {
+  handler,
+  middleware: (event: MouseEvent) => event.target,
+}
 const nullBinding: ClickOutsideBinding = null
 const undefinedBinding: ClickOutsideBinding = undefined
 const falseBinding: ClickOutsideBinding = false
@@ -59,6 +80,11 @@ void namedDirective
 void namedInstall
 void handler
 void middleware
+void targetMiddleware
+void globalDirective
+void fromGlobalDirective
+void globalDirectiveIsExact
+void targetMiddlewareOptions
 void functionBinding
 void broadFunctionBinding
 void broadOptionHandler

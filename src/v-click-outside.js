@@ -36,18 +36,31 @@ const normalize = (value) => {
   ) {
     throw new Error('v-click-outside: Binding value handler must be a function')
   }
+  if (
+    source.isActive !== false &&
+    hasHandler &&
+    source.events &&
+    !Array.isArray(source.events)
+  ) {
+    throw new Error('v-click-outside: Binding value events must be an array')
+  }
   return {
     handler: source.handler,
     middleware: source.middleware || (() => true),
-    events: source.events || EVENTS,
+    events: Array.isArray(source.events) ? source.events : EVENTS,
     isActive: source.isActive !== false && hasHandler,
     detectIframe: source.detectIframe !== false,
     capture: Boolean(source.capture),
   }
 }
 
-const teardown = (el) => {
-  const state = el[HANDLERS_PROPERTY]
+const getState = (el, key) => {
+  const states = el[HANDLERS_PROPERTY] || []
+  return states.filter((state) => state.key === key)[0]
+}
+
+const teardown = (el, key) => {
+  const state = getState(el, key)
   if (!state) {
     return
   }
@@ -61,34 +74,37 @@ const teardown = (el) => {
       },
     )
   }
-  delete el[HANDLERS_PROPERTY]
+  const states = el[HANDLERS_PROPERTY].filter((item) => item !== state)
+  if (states.length > 0) {
+    el[HANDLERS_PROPERTY] = states
+  } else {
+    delete el[HANDLERS_PROPERTY]
+  }
 }
 
-const mount = (el, config) => {
+const mount = (el, key, config) => {
   const state = {
+    key,
     config: { ...config, events: [...config.events] },
     listeners: [],
     timeout: null,
     registered: false,
     pointerDownInside: false,
   }
-  el[HANDLERS_PROPERTY] = state
+  el[HANDLERS_PROPERTY] = (el[HANDLERS_PROPERTY] || []).concat(state)
   if (!config.isActive) {
     return
   }
 
   const onEvent = (event) => {
-    if (isInside(el, event)) {
-      return
-    }
     // A press that started inside and ended outside is a drag (e.g. text
     // selection), not a click outside. Keyboard-triggered clicks have detail 0.
-    if (
-      event.type === 'click' &&
-      event.detail !== 0 &&
-      state.pointerDownInside
-    ) {
+    const isDrag =
+      event.type === 'click' && event.detail !== 0 && state.pointerDownInside
+    if (event.type === 'click') {
       state.pointerDownInside = false
+    }
+    if (isDrag || isInside(el, event)) {
       return
     }
     if (state.config.middleware(event)) {
@@ -103,7 +119,7 @@ const mount = (el, config) => {
     //       next event loop it becomes document.activeElement
     // https://stackoverflow.com/q/2381336#comment61192398_23231136
     setTimeout(() => {
-      if (el[HANDLERS_PROPERTY] !== state) {
+      if (getState(el, key) !== state) {
         return
       }
       const { activeElement } = document
@@ -155,15 +171,17 @@ const mount = (el, config) => {
   }, 0)
 }
 
-const beforeMount = (el, { value }) => {
+// A component can have the directive on its root element while its parent
+// adds another one to the component, so state is kept per owning instance.
+const beforeMount = (el, { value, instance }) => {
   const config = normalize(value)
-  teardown(el)
-  mount(el, config)
+  teardown(el, instance)
+  mount(el, instance, config)
 }
 
-const updated = (el, { value }) => {
+const updated = (el, { value, instance }) => {
   const config = normalize(value)
-  const state = el[HANDLERS_PROPERTY]
+  const state = getState(el, instance)
   // Compare with the stored snapshot, not binding.oldValue: when the config
   // object is mutated in place, oldValue and value are the same object.
   if (
@@ -180,12 +198,12 @@ const updated = (el, { value }) => {
     state.config.middleware = config.middleware
     return
   }
-  teardown(el)
-  mount(el, config)
+  teardown(el, instance)
+  mount(el, instance, config)
 }
 
-const unmounted = (el) => {
-  teardown(el)
+const unmounted = (el, { instance } = {}) => {
+  teardown(el, instance)
 }
 
 export default HAS_WINDOW ? { beforeMount, updated, unmounted, deep: true } : {}

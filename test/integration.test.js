@@ -16,6 +16,19 @@ const [major, minor, patch] = version
 const supportsDeepDirectives =
   major > 3 || (major === 3 && (minor > 1 || (minor === 1 && patch >= 5)))
 
+function nestedApp(parentHandler, childHandler, childActive) {
+  const Child = defineComponent({
+    setup: () => ({ childHandler, childActive }),
+    template:
+      '<div class="child" v-click-outside="{ handler: childHandler, isActive: childActive }"><span>inside</span></div>',
+  })
+  return createApp({
+    components: { Child },
+    setup: () => ({ parentHandler }),
+    template: '<Child v-click-outside="parentHandler" />',
+  })
+}
+
 describe('Vue integration', () => {
   let app
   let container
@@ -362,5 +375,79 @@ describe('Vue integration', () => {
     expect(stop).toHaveBeenCalledTimes(1)
     expect(captured).toHaveBeenCalledTimes(1)
     expect(bubbled).not.toHaveBeenCalled()
+  })
+
+  it('calls both handlers for a child root and its parent binding', () => {
+    const parentHandler = jest.fn()
+    const childHandler = jest.fn()
+    app = nestedApp(parentHandler, childHandler, ref(true))
+    app.use(plugin)
+    app.mount(container)
+    jest.runAllTimers()
+    container
+      .querySelector('span')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(parentHandler).not.toHaveBeenCalled()
+    expect(childHandler).not.toHaveBeenCalled()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(parentHandler).toHaveBeenCalledTimes(1)
+    expect(childHandler).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the parent binding when the child deactivates its own', async () => {
+    const parentHandler = jest.fn()
+    const childHandler = jest.fn()
+    const childActive = ref(true)
+    app = nestedApp(parentHandler, childHandler, childActive)
+    app.use(plugin)
+    app.mount(container)
+    jest.runAllTimers()
+    childActive.value = false
+    await nextTick()
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(parentHandler).toHaveBeenCalledTimes(1)
+    expect(childHandler).not.toHaveBeenCalled()
+    childActive.value = true
+    await nextTick()
+    jest.runAllTimers()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(parentHandler).toHaveBeenCalledTimes(2)
+    expect(childHandler).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes both bindings of a child root on unmount', () => {
+    const parentHandler = jest.fn()
+    const childHandler = jest.fn()
+    const add = jest.spyOn(document.documentElement, 'addEventListener')
+    const remove = jest.spyOn(document.documentElement, 'removeEventListener')
+    const windowAdd = jest.spyOn(window, 'addEventListener')
+    const windowRemove = jest.spyOn(window, 'removeEventListener')
+    app = nestedApp(parentHandler, childHandler, ref(true))
+    app.use(plugin)
+    app.mount(container)
+    jest.runAllTimers()
+    const el = container.querySelector('.child')
+    app.unmount()
+    app = undefined
+    jest.runAllTimers()
+    expect(add).toHaveBeenCalledTimes(4)
+    expect(remove).toHaveBeenCalledTimes(4)
+    add.mock.calls.forEach(([type, listener]) => {
+      expect(remove).toHaveBeenCalledWith(type, listener, expect.anything())
+    })
+    const blurAdds = windowAdd.mock.calls.filter(([type]) => type === 'blur')
+    expect(blurAdds).toHaveLength(2)
+    blurAdds.forEach(([type, listener]) => {
+      expect(windowRemove).toHaveBeenCalledWith(
+        type,
+        listener,
+        expect.anything(),
+      )
+    })
+    expect(el).not.toHaveProperty('__v-click-outside')
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(parentHandler).not.toHaveBeenCalled()
+    expect(childHandler).not.toHaveBeenCalled()
   })
 })
